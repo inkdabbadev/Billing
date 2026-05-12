@@ -25,3 +25,6 @@ export const BUSINESS = {
   defaultTerms:
     'Payment due within 30 days. Goods once sold will not be taken back.',
 } as const
+
+export const PAYMENT_LINE =
+  `All payments can be made to ${BUSINESS.bank.accountName} | ${BUSINESS.bank.bankName} A/c no- ${BUSINESS.bank.accountNo} | IFSC-${BUSINESS.bank.ifsc}`

@@ -8,6 +8,7 @@ import type { Company } from '@/lib/types/database'
 
 const schema = z.object({
   company_name: z.string().min(1, 'Company name is required'),
+  branch: z.string().optional(),
   gstin: z
     .string()
     .regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, 'Invalid GSTIN format')
@@ -71,14 +72,14 @@ export default function CompaniesPage() {
 
   function openAdd() {
     setEditing(null)
-    reset({ company_name: '', gstin: '', email: '', phone: '', address_line_1: '', address_line_2: '', city: '', state: '', pincode: '', country: 'India', is_client: true, is_supplier: false })
+    reset({ company_name: '', branch: '', gstin: '', email: '', phone: '', address_line_1: '', address_line_2: '', city: '', state: '', pincode: '', country: 'India', is_client: true, is_supplier: false })
     setError('')
     setModalOpen(true)
   }
 
   function openEdit(c: Company) {
     setEditing(c)
-    reset({ ...c, gstin: c.gstin ?? '', email: c.email ?? '', phone: c.phone ?? '', address_line_1: c.address_line_1 ?? '', address_line_2: c.address_line_2 ?? '', city: c.city ?? '', state: c.state ?? '', pincode: c.pincode ?? '' })
+    reset({ ...c, branch: c.branch ?? '', gstin: c.gstin ?? '', email: c.email ?? '', phone: c.phone ?? '', address_line_1: c.address_line_1 ?? '', address_line_2: c.address_line_2 ?? '', city: c.city ?? '', state: c.state ?? '', pincode: c.pincode ?? '' })
     setError('')
     setModalOpen(true)
   }
@@ -168,6 +169,7 @@ export default function CompaniesPage() {
                 <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="px-6 py-3">
                     <p className="font-medium text-gray-900">{c.company_name}</p>
+                    {c.branch && <p className="text-xs text-blue-600 font-medium">{c.branch}</p>}
                     {c.email && <p className="text-xs text-gray-400">{c.email}</p>}
                   </td>
                   <td className="px-6 py-3 text-gray-500 font-mono text-xs">{c.gstin || '—'}</td>
@@ -213,9 +215,14 @@ export default function CompaniesPage() {
             <form onSubmit={handleSubmit(onSubmit)} className="px-6 py-5 space-y-4">
               {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
 
-              <Field label="Company Name *" error={errors.company_name?.message}>
-                <input {...register('company_name')} className={input(!!errors.company_name)} placeholder="Acme Pvt Ltd" />
-              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Company Name *" error={errors.company_name?.message}>
+                  <input {...register('company_name')} className={input(!!errors.company_name)} placeholder="Acme Pvt Ltd" />
+                </Field>
+                <Field label="Branch (optional)">
+                  <input {...register('branch')} className={input()} placeholder="Chennai" />
+                </Field>
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <Field label="GSTIN" error={errors.gstin?.message}>

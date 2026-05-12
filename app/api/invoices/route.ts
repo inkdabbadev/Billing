@@ -24,6 +24,7 @@ const invoiceSchema = z.object({
   place_of_supply: z.string().optional(),
   bill_to_company_id: z.string().uuid('Bill-To company required'),
   ship_to_company_id: z.string().uuid().nullable().optional(),
+  payment_method_id: z.string().uuid().nullable().optional(),
   payment_details: z.string().optional(),
   common_seal_text: z.string().optional(),
   notes: z.string().optional(),

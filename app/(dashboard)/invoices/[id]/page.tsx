@@ -7,7 +7,7 @@ import { useForm, useFieldArray, useWatch, type Resolver } from 'react-hook-form
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { fmt, calculateLine, calculateTotals } from '@/lib/utils/calculateInvoice'
-import type { Company, Item } from '@/lib/types/database'
+import type { Company, Item, PaymentMethod } from '@/lib/types/database'
 import type { InvoiceLineInput, InvoiceWithRelations } from '@/lib/types/invoice'
 
 const STATUS_COLOR: Record<string, string> = {
@@ -59,6 +59,8 @@ export default function InvoiceDetailPage() {
   const [invoice, setInvoice] = useState<InvoiceWithRelations | null>(null)
   const [companies, setCompanies] = useState<Company[]>([])
   const [items, setItems] = useState<Item[]>([])
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+  const [selectedPaymentId, setSelectedPaymentId] = useState<string>('custom')
   const [loading, setLoading] = useState(true)
   const [editMode, setEditMode] = useState(startEdit)
   const [saving, setSaving] = useState(false)
@@ -76,12 +78,15 @@ export default function InvoiceDetailPage() {
       fetch(`/api/invoices/${id}`).then((r) => r.json()),
       fetch('/api/companies').then((r) => r.json()),
       fetch('/api/items').then((r) => r.json()),
-    ]).then(([inv, c, it]) => {
+      fetch('/api/payment-methods').then((r) => r.json()),
+    ]).then(([inv, c, it, pm]) => {
       setInvoice(inv)
       setCompanies(Array.isArray(c) ? c : [])
       setItems(Array.isArray(it) ? it : [])
+      setPaymentMethods(Array.isArray(pm) ? pm : [])
 
       if (inv && !inv.error) {
+        setSelectedPaymentId(inv.payment_method_id ?? 'custom')
         reset({
           invoice_no: inv.invoice_no,
           invoice_date: inv.invoice_date,
@@ -146,7 +151,11 @@ export default function InvoiceDetailPage() {
       const r = await fetch(`/api/invoices/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...values, ship_to_company_id: values.ship_to_company_id || null }),
+        body: JSON.stringify({
+          ...values,
+          ship_to_company_id: values.ship_to_company_id || null,
+          payment_method_id: selectedPaymentId === 'custom' ? null : selectedPaymentId,
+        }),
       })
       const data = await r.json()
       if (!r.ok) throw new Error(data.error ?? 'Failed to update')
@@ -184,18 +193,43 @@ export default function InvoiceDetailPage() {
 
   async function markPaid() {
     if (!confirm('Mark this invoice as paid?')) return
-    const r = await fetch(`/api/invoices/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...invoice, status: 'paid', lines: invoice?.invoice_items?.map((li: any) => ({
-        item_id: li.item_id, description: li.description, hsn_sac: li.hsn_sac,
-        qty: li.qty, unit: li.unit, rate: li.rate,
-        sgst_percent: li.sgst_percent, cgst_percent: li.cgst_percent,
-      })) }),
-    })
-    if (r.ok) {
+    try {
+      const r = await fetch(`/api/invoices/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'paid' }),
+      })
+      const data = await r.json()
+      if (!r.ok) {
+        console.error('Failed to mark invoice as paid:', data)
+        alert(data.error ? JSON.stringify(data.error) : 'Failed to mark invoice as paid')
+        return
+      }
       const full = await fetch(`/api/invoices/${id}`).then((r) => r.json())
       setInvoice(full)
+    } catch (e) {
+      console.error('markPaid error:', e)
+    }
+  }
+
+  async function markUnpaid() {
+    if (!confirm('Mark this invoice as unpaid? Status will be reset to "sent".')) return
+    try {
+      const r = await fetch(`/api/invoices/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'sent' }),
+      })
+      const data = await r.json()
+      if (!r.ok) {
+        console.error('Failed to mark invoice as unpaid:', data)
+        alert(data.error ? JSON.stringify(data.error) : 'Failed to mark invoice as unpaid')
+        return
+      }
+      const full = await fetch(`/api/invoices/${id}`).then((r) => r.json())
+      setInvoice(full)
+    } catch (e) {
+      console.error('markUnpaid error:', e)
     }
   }
 
@@ -247,6 +281,14 @@ export default function InvoiceDetailPage() {
                 className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700"
               >
                 Mark Paid
+              </button>
+            )}
+            {invoice.status === 'paid' && (
+              <button
+                onClick={markUnpaid}
+                className="px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600"
+              >
+                Mark Unpaid
               </button>
             )}
           </div>
@@ -416,13 +458,21 @@ export default function InvoiceDetailPage() {
             <Field label="Bill To *" error={errors.bill_to_company_id?.message}>
               <select {...register('bill_to_company_id')} className={inp(!!errors.bill_to_company_id)}>
                 <option value="">Select…</option>
-                {companies.map((c) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.company_name}{c.branch ? ` – ${c.branch}` : c.city ? ` – ${c.city}` : ''}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label="Ship To">
               <select {...register('ship_to_company_id')} className={inp()}>
                 <option value="">Same as Bill To</option>
-                {companies.map((c) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.company_name}{c.branch ? ` – ${c.branch}` : c.city ? ` – ${c.city}` : ''}
+                  </option>
+                ))}
               </select>
             </Field>
           </div>
@@ -489,7 +539,32 @@ export default function InvoiceDetailPage() {
 
         <Section title="Additional">
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Payment Details"><textarea {...register('payment_details')} rows={3} className={inp()} /></Field>
+            <div className="space-y-2">
+              <Field label="Payment Method">
+                <select
+                  value={selectedPaymentId}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setSelectedPaymentId(val)
+                    if (val !== 'custom') {
+                      const m = paymentMethods.find((pm) => pm.id === val)
+                      if (m) setValue('payment_details', m.payment_details)
+                    }
+                  }}
+                  className={inp()}
+                >
+                  <option value="custom">Custom Payment Details</option>
+                  {paymentMethods.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.title}{m.is_default ? ' (Default)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Payment Details">
+                <textarea {...register('payment_details')} rows={3} className={inp()} />
+              </Field>
+            </div>
             <Field label="Notes"><textarea {...register('notes')} rows={3} className={inp()} /></Field>
           </div>
         </Section>

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useForm, useFieldArray, useWatch, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import type { Company, Item } from '@/lib/types/database'
+import type { Company, Item, PaymentMethod } from '@/lib/types/database'
 import { calculateLine, calculateTotals, fmt } from '@/lib/utils/calculateInvoice'
 import type { InvoiceLineInput } from '@/lib/types/invoice'
 
@@ -54,6 +54,8 @@ export default function NewInvoicePage() {
   const router = useRouter()
   const [companies, setCompanies] = useState<Company[]>([])
   const [items, setItems] = useState<Item[]>([])
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+  const [selectedPaymentId, setSelectedPaymentId] = useState<string>('custom')
   const [saving, setSaving] = useState(false)
   const [savingPdf, setSavingPdf] = useState(false)
   const [serverError, setServerError] = useState('')
@@ -81,9 +83,19 @@ export default function NewInvoicePage() {
     Promise.all([
       fetch('/api/companies').then((r) => r.json()),
       fetch('/api/items').then((r) => r.json()),
-    ]).then(([c, i]) => {
+      fetch('/api/invoices/next-number').then((r) => r.json()),
+      fetch('/api/payment-methods').then((r) => r.json()),
+    ]).then(([c, i, num, pm]) => {
       setCompanies(Array.isArray(c) ? c : [])
       setItems(Array.isArray(i) ? i : [])
+      if (num?.next) setValue('invoice_no', num.next)
+      const methods: PaymentMethod[] = Array.isArray(pm) ? pm : []
+      setPaymentMethods(methods)
+      const defaultMethod = methods.find((m) => m.is_default) ?? methods[0]
+      if (defaultMethod) {
+        setSelectedPaymentId(defaultMethod.id)
+        setValue('payment_details', defaultMethod.payment_details)
+      }
     })
   }, [])
 
@@ -126,6 +138,7 @@ export default function NewInvoicePage() {
         body: JSON.stringify({
           ...values,
           ship_to_company_id: values.ship_to_company_id || null,
+          payment_method_id: selectedPaymentId === 'custom' ? null : selectedPaymentId,
         }),
       })
       const data = await r.json()
@@ -199,7 +212,9 @@ export default function NewInvoicePage() {
               <select {...register('bill_to_company_id')} className={inp(!!errors.bill_to_company_id)}>
                 <option value="">Select company…</option>
                 {companies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.company_name} {c.city ? `– ${c.city}` : ''}</option>
+                  <option key={c.id} value={c.id}>
+                    {c.company_name}{c.branch ? ` – ${c.branch}` : c.city ? ` – ${c.city}` : ''}
+                  </option>
                 ))}
               </select>
             </Field>
@@ -207,7 +222,9 @@ export default function NewInvoicePage() {
               <select {...register('ship_to_company_id')} className={inp()}>
                 <option value="">Same as Bill To</option>
                 {companies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.company_name} {c.city ? `– ${c.city}` : ''}</option>
+                  <option key={c.id} value={c.id}>
+                    {c.company_name}{c.branch ? ` – ${c.branch}` : c.city ? ` – ${c.city}` : ''}
+                  </option>
                 ))}
               </select>
             </Field>
@@ -353,14 +370,37 @@ export default function NewInvoicePage() {
         {/* ── Additional Details ── */}
         <Section title="Additional Details">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Payment Details / Bank Account">
-              <textarea
-                {...register('payment_details')}
-                rows={3}
-                className={inp()}
-                placeholder="Bank name, account number, IFSC…"
-              />
-            </Field>
+            <div className="space-y-2">
+              <Field label="Payment Method">
+                <select
+                  value={selectedPaymentId}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setSelectedPaymentId(val)
+                    if (val !== 'custom') {
+                      const m = paymentMethods.find((pm) => pm.id === val)
+                      if (m) setValue('payment_details', m.payment_details)
+                    }
+                  }}
+                  className={inp()}
+                >
+                  <option value="custom">Custom Payment Details</option>
+                  {paymentMethods.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.title}{m.is_default ? ' (Default)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Payment Details">
+                <textarea
+                  {...register('payment_details')}
+                  rows={3}
+                  className={inp()}
+                  placeholder="Bank name, account number, IFSC…"
+                />
+              </Field>
+            </div>
             <Field label="Notes / Terms">
               <textarea
                 {...register('notes')}

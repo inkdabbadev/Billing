@@ -3,6 +3,7 @@ export type Json = string | number | boolean | null | { [key: string]: Json } | 
 export interface Company {
   id: string
   company_name: string
+  branch: string | null
   gstin: string | null
   email: string | null
   phone: string | null
@@ -21,6 +22,7 @@ export interface Company {
 export interface CompanyInsert {
   id?: string
   company_name: string
+  branch?: string | null
   gstin?: string | null
   email?: string | null
   phone?: string | null
@@ -62,6 +64,24 @@ export interface ItemInsert {
   updated_at?: string
 }
 
+export interface PaymentMethod {
+  id: string
+  title: string
+  payment_details: string
+  is_default: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface PaymentMethodInsert {
+  id?: string
+  title: string
+  payment_details: string
+  is_default?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
 export interface Invoice {
   id: string
   invoice_no: string
@@ -73,6 +93,7 @@ export interface Invoice {
   place_of_supply: string | null
   bill_to_company_id: string | null
   ship_to_company_id: string | null
+  payment_method_id: string | null
   subtotal: number
   total_sgst: number
   total_cgst: number
@@ -97,6 +118,7 @@ export interface InvoiceInsert {
   place_of_supply?: string | null
   bill_to_company_id?: string | null
   ship_to_company_id?: string | null
+  payment_method_id?: string | null
   subtotal?: number
   total_sgst?: number
   total_cgst?: number

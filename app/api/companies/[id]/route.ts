@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 const schema = z.object({
   company_name: z.string().min(1, 'Company name is required'),
+  branch: z.string().optional(),
   gstin: z
     .string()
     .regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, 'Invalid GSTIN')

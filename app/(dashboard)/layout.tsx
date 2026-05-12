@@ -10,6 +10,7 @@ const nav = [
   { href: '/invoices', label: 'Invoices', icon: '⟨⟩' },
   { href: '/companies', label: 'Companies', icon: '⊙' },
   { href: '/items', label: 'Items & Services', icon: '≡' },
+  { href: '/payments', label: 'Payments', icon: '₹' },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

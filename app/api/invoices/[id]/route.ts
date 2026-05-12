@@ -24,11 +24,17 @@ const invoiceSchema = z.object({
   place_of_supply: z.string().optional(),
   bill_to_company_id: z.string().uuid(),
   ship_to_company_id: z.string().uuid().nullable().optional(),
+  payment_method_id: z.string().uuid().nullable().optional(),
   payment_details: z.string().optional(),
   common_seal_text: z.string().optional(),
   notes: z.string().optional(),
   status: z.enum(['draft', 'generated', 'sent', 'paid']).default('draft'),
   lines: z.array(lineSchema).min(1),
+})
+
+// Lightweight schema for status-only updates (Mark as Paid, status toggles)
+const statusPatchSchema = z.object({
+  status: z.enum(['draft', 'generated', 'sent', 'paid']),
 })
 
 export async function GET(
@@ -64,13 +70,37 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
+    const supabase = createServerClient()
+
+    // ── Status-only update (e.g. Mark as Paid) ──
+    // Detected when the body does not include 'lines'.
+    if (!('lines' in body)) {
+      const parsed = statusPatchSchema.safeParse(body)
+      if (!parsed.success) {
+        console.error(`[PUT /api/invoices/${id}] status-patch validation failed:`, parsed.error.flatten())
+        return Response.json({ error: parsed.error.flatten() }, { status: 400 })
+      }
+      const { data: invoice, error } = await supabase
+        .from('invoices')
+        .update({ status: parsed.data.status })
+        .eq('id', id)
+        .select()
+        .single()
+      if (error) {
+        console.error(`[PUT /api/invoices/${id}] supabase status update error:`, error)
+        throw error
+      }
+      return Response.json(invoice)
+    }
+
+    // ── Full invoice update (from edit form) ──
     const parsed = invoiceSchema.safeParse(body)
     if (!parsed.success) {
+      console.error(`[PUT /api/invoices/${id}] full-update validation failed:`, parsed.error.flatten())
       return Response.json({ error: parsed.error.flatten() }, { status: 400 })
     }
 
     const { lines, ...invoiceData } = parsed.data
-    const supabase = createServerClient()
 
     const calculatedLines = lines.map((l) => calculateLine({ ...l, item_id: l.item_id ?? null }))
     const totals = calculateTotals(calculatedLines)
@@ -82,7 +112,10 @@ export async function PUT(
       .select()
       .single()
 
-    if (invErr) throw invErr
+    if (invErr) {
+      console.error(`[PUT /api/invoices/${id}] supabase invoice update error:`, invErr)
+      throw invErr
+    }
 
     // Replace invoice items
     await supabase.from('invoice_items').delete().eq('invoice_id', id)
@@ -104,10 +137,14 @@ export async function PUT(
     }))
 
     const { error: itemErr } = await supabase.from('invoice_items').insert(itemRows)
-    if (itemErr) throw itemErr
+    if (itemErr) {
+      console.error(`[PUT /api/invoices/${id}] supabase invoice_items insert error:`, itemErr)
+      throw itemErr
+    }
 
     return Response.json(invoice)
-  } catch {
+  } catch (err) {
+    console.error('[PUT /api/invoices/[id]] unhandled error:', err)
     return Response.json({ error: 'Failed to update invoice' }, { status: 500 })
   }
 }
