@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { calculateLine, calculateTotals } from '@/lib/utils/calculateInvoice'
+import { getCompanyConfig } from '@/lib/config/companies'
 
 const lineSchema = z.object({
   item_id: z.string().uuid().nullable().optional(),
@@ -38,14 +39,17 @@ const statusPatchSchema = z.object({
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ company: string; id: string }> }
 ) {
+  const { company, id } = await params
+  const config = getCompanyConfig(company)
+  if (!config) return Response.json({ error: 'Unknown company' }, { status: 404 })
+
   try {
-    const { id } = await params
     const supabase = createServerClient()
 
     const { data: invoice, error } = await supabase
-      .from('invoicesink')
+      .from(config.invoiceTable)
       .select(`
         *,
         bill_to_company:companies!bill_to_company_id(*),
@@ -57,7 +61,7 @@ export async function GET(
     if (error || !invoice) return Response.json({ error: 'Invoice not found' }, { status: 404 })
 
     const { data: invoiceItems } = await supabase
-      .from('invoice_itemsink')
+      .from(config.invoiceItemsTable)
       .select('*, item:items(*)')
       .eq('invoice_id', id)
 
@@ -69,10 +73,13 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ company: string; id: string }> }
 ) {
+  const { company, id } = await params
+  const config = getCompanyConfig(company)
+  if (!config) return Response.json({ error: 'Unknown company' }, { status: 404 })
+
   try {
-    const { id } = await params
     const body = await request.json()
     const supabase = createServerClient()
 
@@ -82,7 +89,7 @@ export async function PUT(
         return Response.json({ error: parsed.error.flatten() }, { status: 400 })
       }
       const { data: invoice, error } = await supabase
-        .from('invoicesink')
+        .from(config.invoiceTable)
         .update({ status: parsed.data.status })
         .eq('id', id)
         .select()
@@ -101,7 +108,7 @@ export async function PUT(
     const totals = calculateTotals(calculatedLines)
 
     const { data: invoice, error: invErr } = await supabase
-      .from('invoicesink')
+      .from(config.invoiceTable)
       .update({ ...invoiceData, ...totals })
       .eq('id', id)
       .select()
@@ -109,7 +116,7 @@ export async function PUT(
 
     if (invErr) throw invErr
 
-    await supabase.from('invoice_itemsink').delete().eq('invoice_id', id)
+    await supabase.from(config.invoiceItemsTable).delete().eq('invoice_id', id)
 
     const itemRows = calculatedLines.map((l) => ({
       invoice_id: id,
@@ -127,25 +134,28 @@ export async function PUT(
       total: l.total,
     }))
 
-    const { error: itemErr } = await supabase.from('invoice_itemsink').insert(itemRows)
+    const { error: itemErr } = await supabase.from(config.invoiceItemsTable).insert(itemRows)
     if (itemErr) throw itemErr
 
     return Response.json(invoice)
   } catch (err) {
-    console.error('[PUT /api/invoices/[id]]', err)
+    console.error(`[PUT /api/${company}/invoices/${id}]`, err)
     return Response.json({ error: 'Failed to update invoice' }, { status: 500 })
   }
 }
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ company: string; id: string }> }
 ) {
+  const { company, id } = await params
+  const config = getCompanyConfig(company)
+  if (!config) return Response.json({ error: 'Unknown company' }, { status: 404 })
+
   try {
-    const { id } = await params
     const supabase = createServerClient()
-    await supabase.from('invoice_itemsink').delete().eq('invoice_id', id)
-    const { error } = await supabase.from('invoicesink').delete().eq('id', id)
+    await supabase.from(config.invoiceItemsTable).delete().eq('invoice_id', id)
+    const { error } = await supabase.from(config.invoiceTable).delete().eq('id', id)
     if (error) throw error
     return new Response(null, { status: 204 })
   } catch {

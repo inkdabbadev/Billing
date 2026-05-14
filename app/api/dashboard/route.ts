@@ -11,20 +11,20 @@ export async function GET() {
       { data: invoiceItems, error: iiErr },
     ] = await Promise.all([
       supabase
-        .from('invoices')
+        .from('invoicesink')
         .select(
-          'id, invoice_no, invoice_date, grand_total, status, bill_to_company_id, bill_to_company:companies!invoices_bill_to_company_id_fkey(id, company_name, branch)'
+          'id, invoice_no, invoice_date, grand_total, status, bill_to_company_id, bill_to_company:companies!bill_to_company_id(id, company_name, branch)'
         )
         .order('created_at', { ascending: false }),
       supabase.from('companies').select('*').order('company_name', { ascending: true }),
       supabase.from('items').select('*').order('item_name', { ascending: true }),
-      supabase.from('invoice_items').select('invoice_id, item_id').not('item_id', 'is', null),
+      supabase.from('invoice_itemsink').select('invoice_id, item_id').not('item_id', 'is', null),
     ])
 
     if (invErr) console.error('[GET /api/dashboard] invoices:', invErr)
     if (coErr) console.error('[GET /api/dashboard] companies:', coErr)
     if (itErr) console.error('[GET /api/dashboard] items:', itErr)
-    if (iiErr) console.error('[GET /api/dashboard] invoice_items:', iiErr)
+    if (iiErr) console.error('[GET /api/dashboard] invoice_itemsink:', iiErr)
 
     return Response.json({
       invoices: invoices ?? [],

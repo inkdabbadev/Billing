@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { fmt, calculateLine, calculateTotals } from '@/lib/utils/calculateInvoice'
 import type { Company, Item, PaymentMethod } from '@/lib/types/database'
+import { ItemCombobox } from '@/components/ItemCombobox'
 import type { InvoiceLineInput, InvoiceWithRelations } from '@/lib/types/invoice'
 
 const STATUS_COLOR: Record<string, string> = {
@@ -15,8 +16,6 @@ const STATUS_COLOR: Record<string, string> = {
   unpaid: 'bg-amber-100 text-amber-700',
   paid:   'bg-green-100 text-green-700',
 }
-
-// ── Edit form schema ──────────────────────────────────────────────────────────
 
 const lineSchema = z.object({
   item_id: z.string().nullable().optional(),
@@ -48,11 +47,13 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-export default function InvoiceDetailPage() {
+export default function CompanyInvoiceDetailPage() {
   const params = useParams()
   const searchParams = useSearchParams()
   const router = useRouter()
+  const company = params.company as string
   const id = params.id as string
+  const base = `/${company}`
   const startEdit = searchParams.get('edit') === '1'
 
   const [invoice, setInvoice] = useState<InvoiceWithRelations | null>(null)
@@ -74,7 +75,7 @@ export default function InvoiceDetailPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`/api/invoices/${id}`).then((r) => r.json()),
+      fetch(`/api/${company}/invoices/${id}`).then((r) => r.json()),
       fetch('/api/companies').then((r) => r.json()),
       fetch('/api/items').then((r) => r.json()),
       fetch('/api/payment-methods').then((r) => r.json()),
@@ -114,19 +115,17 @@ export default function InvoiceDetailPage() {
       }
       setLoading(false)
     })
-  }, [id, reset])
+  }, [company, id, reset])
 
-  function applyItem(index: number, itemId: string) {
-    const item = items.find((i) => i.id === itemId)
-    if (!item) return
-    const half = Math.round(item.gst_percent / 2 * 100) / 100
-    setValue(`lines.${index}.description`, item.item_name)
+  function applyItem(index: number, item: Item) {
+    const half = Math.round((item.gst_percent / 2) * 100) / 100
+    setValue(`lines.${index}.item_id`, item.id)
+    setValue(`lines.${index}.description`, item.description || item.item_name)
     setValue(`lines.${index}.hsn_sac`, item.hsn_sac ?? '')
     setValue(`lines.${index}.unit`, item.unit)
     setValue(`lines.${index}.rate`, item.default_rate)
     setValue(`lines.${index}.sgst_percent`, half)
     setValue(`lines.${index}.cgst_percent`, half)
-    setValue(`lines.${index}.item_id`, itemId)
   }
 
   const calcLines = (watchedLines ?? []).map((l) =>
@@ -147,7 +146,7 @@ export default function InvoiceDetailPage() {
     setSaving(true)
     setServerError('')
     try {
-      const r = await fetch(`/api/invoices/${id}`, {
+      const r = await fetch(`/api/${company}/invoices/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -158,10 +157,8 @@ export default function InvoiceDetailPage() {
       })
       const data = await r.json()
       if (!r.ok) throw new Error(data.error ?? 'Failed to update')
-      setInvoice(data)
       setEditMode(false)
-      // Reload full invoice with relations
-      const full = await fetch(`/api/invoices/${id}`).then((r) => r.json())
+      const full = await fetch(`/api/${company}/invoices/${id}`).then((r) => r.json())
       setInvoice(full)
     } catch (e: any) {
       setServerError(e.message)
@@ -173,7 +170,7 @@ export default function InvoiceDetailPage() {
   async function downloadPdf() {
     setPdfLoading(true)
     try {
-      const r = await fetch(`/api/invoices/${id}/pdf`)
+      const r = await fetch(`/api/${company}/invoices/${id}/pdf`)
       if (!r.ok) { alert('PDF generation failed'); return }
       const blob = await r.blob()
       const url = URL.createObjectURL(blob)
@@ -182,8 +179,7 @@ export default function InvoiceDetailPage() {
       a.download = `invoice-${invoice?.invoice_no}.pdf`
       a.click()
       URL.revokeObjectURL(url)
-      // Refresh status
-      const full = await fetch(`/api/invoices/${id}`).then((r) => r.json())
+      const full = await fetch(`/api/${company}/invoices/${id}`).then((r) => r.json())
       setInvoice(full)
     } finally {
       setPdfLoading(false)
@@ -192,55 +188,37 @@ export default function InvoiceDetailPage() {
 
   async function markPaid() {
     if (!confirm('Mark this invoice as paid?')) return
-    try {
-      const r = await fetch(`/api/invoices/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'paid' }),
-      })
-      const data = await r.json()
-      if (!r.ok) {
-        console.error('Failed to mark invoice as paid:', data)
-        alert(data.error ? JSON.stringify(data.error) : 'Failed to mark invoice as paid')
-        return
-      }
-      const full = await fetch(`/api/invoices/${id}`).then((r) => r.json())
-      setInvoice(full)
-    } catch (e) {
-      console.error('markPaid error:', e)
-    }
+    const r = await fetch(`/api/${company}/invoices/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'paid' }),
+    })
+    if (!r.ok) { alert('Failed to mark as paid'); return }
+    const full = await fetch(`/api/${company}/invoices/${id}`).then((r) => r.json())
+    setInvoice(full)
   }
 
   async function markUnpaid() {
-    if (!confirm('Mark this invoice as unpaid? Status will be reset to "sent".')) return
-    try {
-      const r = await fetch(`/api/invoices/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'unpaid' }),
-      })
-      const data = await r.json()
-      if (!r.ok) {
-        console.error('Failed to mark invoice as unpaid:', data)
-        alert(data.error ? JSON.stringify(data.error) : 'Failed to mark invoice as unpaid')
-        return
-      }
-      const full = await fetch(`/api/invoices/${id}`).then((r) => r.json())
-      setInvoice(full)
-    } catch (e) {
-      console.error('markUnpaid error:', e)
-    }
+    if (!confirm('Mark this invoice as unpaid?')) return
+    const r = await fetch(`/api/${company}/invoices/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'unpaid' }),
+    })
+    if (!r.ok) { alert('Failed to mark as unpaid'); return }
+    const full = await fetch(`/api/${company}/invoices/${id}`).then((r) => r.json())
+    setInvoice(full)
   }
 
   if (loading) return <div className="p-8 text-sm text-gray-400">Loading…</div>
   if (!invoice || (invoice as any).error) return (
     <div className="p-8">
       <p className="text-sm text-red-500">Invoice not found.</p>
-      <Link href="/invoices" className="mt-2 inline-block text-sm text-blue-600">← Back to Invoices</Link>
+      <Link href={`${base}/invoices`} className="mt-2 inline-block text-sm text-blue-600">← Back to Invoices</Link>
     </div>
   )
 
-  // ── View mode ────────────────────────────────────────────────────────────────
+  // ── View mode ─────────────────────────────────────────────────────────────────
   if (!editMode) {
     const bill = invoice.bill_to_company
     const ship = invoice.ship_to_company
@@ -248,10 +226,9 @@ export default function InvoiceDetailPage() {
 
     return (
       <div className="p-8">
-        {/* Header */}
         <div className="flex items-start justify-between mb-6">
           <div>
-            <Link href="/invoices" className="text-xs text-gray-400 hover:text-gray-600 mb-2 inline-block">← Invoices</Link>
+            <Link href={`${base}/invoices`} className="text-xs text-gray-400 hover:text-gray-600 mb-2 inline-block">← Invoices</Link>
             <h1 className="text-2xl font-bold text-gray-900">{invoice.invoice_no}</h1>
             <div className="flex items-center gap-3 mt-2">
               <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLOR[invoice.status]}`}>
@@ -261,32 +238,19 @@ export default function InvoiceDetailPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={downloadPdf}
-              disabled={pdfLoading}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
-            >
+            <button onClick={downloadPdf} disabled={pdfLoading} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
               {pdfLoading ? 'Generating…' : 'Download PDF'}
             </button>
-            <button
-              onClick={() => setEditMode(true)}
-              className="px-4 py-2 border border-gray-200 text-sm text-gray-700 rounded-lg hover:bg-gray-50"
-            >
+            <button onClick={() => setEditMode(true)} className="px-4 py-2 border border-gray-200 text-sm text-gray-700 rounded-lg hover:bg-gray-50">
               Edit
             </button>
             {invoice.status !== 'paid' && (
-              <button
-                onClick={markPaid}
-                className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700"
-              >
+              <button onClick={markPaid} className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
                 Mark Paid
               </button>
             )}
             {invoice.status === 'paid' && (
-              <button
-                onClick={markUnpaid}
-                className="px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600"
-              >
+              <button onClick={markUnpaid} className="px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600">
                 Mark Unpaid
               </button>
             )}
@@ -294,7 +258,6 @@ export default function InvoiceDetailPage() {
         </div>
 
         <div className="space-y-4">
-          {/* Parties */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <InfoCard title="Bill To">
               {bill ? (
@@ -321,7 +284,6 @@ export default function InvoiceDetailPage() {
             </InfoCard>
           </div>
 
-          {/* Invoice meta */}
           <InfoCard title="Invoice Details">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
               <MetaRow label="Invoice No." value={invoice.invoice_no} />
@@ -333,7 +295,6 @@ export default function InvoiceDetailPage() {
             </div>
           </InfoCard>
 
-          {/* Items table */}
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
               <h2 className="text-sm font-semibold text-gray-700">Items & Services</h2>
@@ -364,20 +325,14 @@ export default function InvoiceDetailPage() {
                       <td className="px-4 py-2 text-gray-500">{li.unit}</td>
                       <td className="px-4 py-2 text-right">₹ {fmt(li.rate)}</td>
                       <td className="px-4 py-2 text-right">₹ {fmt(li.amount)}</td>
-                      <td className="px-4 py-2 text-right text-xs">
-                        {li.sgst_percent}% = ₹{fmt(li.sgst_amount)}
-                      </td>
-                      <td className="px-4 py-2 text-right text-xs">
-                        {li.cgst_percent}% = ₹{fmt(li.cgst_amount)}
-                      </td>
+                      <td className="px-4 py-2 text-right text-xs">{li.sgst_percent}% = ₹{fmt(li.sgst_amount)}</td>
+                      <td className="px-4 py-2 text-right text-xs">{li.cgst_percent}% = ₹{fmt(li.cgst_amount)}</td>
                       <td className="px-4 py-2 text-right font-medium text-gray-900">₹ {fmt(li.total)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-
-            {/* Totals */}
             <div className="px-5 py-4 border-t border-gray-100 flex justify-between items-start">
               <div>
                 <p className="text-xs text-gray-500 font-medium mb-1">Amount in Words</p>
@@ -394,7 +349,6 @@ export default function InvoiceDetailPage() {
             </div>
           </div>
 
-          {/* Notes / payment */}
           {(invoice.payment_details || invoice.notes) && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {invoice.payment_details && (
@@ -414,7 +368,7 @@ export default function InvoiceDetailPage() {
     )
   }
 
-  // ── Edit mode ────────────────────────────────────────────────────────────────
+  // ── Edit mode ─────────────────────────────────────────────────────────────────
   return (
     <div className="p-8 max-w-6xl">
       <div className="flex items-center gap-3 mb-6">
@@ -501,10 +455,11 @@ export default function InvoiceDetailPage() {
                     <tr key={field.id} className="align-top">
                       <td className="pt-3 pr-2 text-gray-400 text-xs">{i + 1}</td>
                       <td className="pt-2 pr-2">
-                        <select className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg" onChange={(e) => applyItem(i, e.target.value)} defaultValue="">
-                          <option value="">Pick…</option>
-                          {items.map((it) => <option key={it.id} value={it.id}>{it.item_name}</option>)}
-                        </select>
+                        <ItemCombobox
+                          items={items}
+                          selectedItemId={watchedLines?.[i]?.item_id}
+                          onSelect={(item) => applyItem(i, item)}
+                        />
                       </td>
                       <td className="pt-2 pr-2"><input {...register(`lines.${i}.description`)} className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg" /></td>
                       <td className="pt-2 pr-2"><input {...register(`lines.${i}.hsn_sac`)} className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg" /></td>
@@ -524,7 +479,6 @@ export default function InvoiceDetailPage() {
             </table>
           </div>
           <button type="button" onClick={() => append({ item_id: '', description: '', hsn_sac: '', qty: 1, unit: 'NOS', rate: 0, sgst_percent: 9, cgst_percent: 9 })} className="mt-3 text-sm text-blue-600">+ Add Line</button>
-
           <div className="mt-5 flex justify-end">
             <div className="w-64 space-y-2 text-sm">
               <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>₹ {fmt(totals.subtotal)}</span></div>
@@ -553,9 +507,7 @@ export default function InvoiceDetailPage() {
                 >
                   <option value="custom">Custom Payment Details</option>
                   {paymentMethods.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.title}{m.is_default ? ' (Default)' : ''}
-                    </option>
+                    <option key={m.id} value={m.id}>{m.title}{m.is_default ? ' (Default)' : ''}</option>
                   ))}
                 </select>
               </Field>

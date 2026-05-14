@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { calculateLine, calculateTotals } from '@/lib/utils/calculateInvoice'
+import { getCompanyConfig } from '@/lib/config/companies'
 
 const lineSchema = z.object({
   item_id: z.string().uuid().nullable().optional(),
@@ -32,14 +33,21 @@ const invoiceSchema = z.object({
   lines: z.array(lineSchema).min(1, 'At least one item is required'),
 })
 
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ company: string }> }
+) {
+  const { company } = await params
+  const config = getCompanyConfig(company)
+  if (!config) return Response.json({ error: 'Unknown company' }, { status: 404 })
+
   try {
     const supabase = createServerClient()
     const search = request.nextUrl.searchParams.get('search') ?? ''
     const status = request.nextUrl.searchParams.get('status') ?? ''
 
     let query = supabase
-      .from('invoicesink')
+      .from(config.invoiceTable)
       .select(`
         *,
         bill_to_company:companies!bill_to_company_id(*),
@@ -54,12 +62,20 @@ export async function GET(request: NextRequest) {
     if (error) throw error
 
     return Response.json(data)
-  } catch {
+  } catch (err) {
+    console.error(`[GET /api/${company}/invoices]`, err)
     return Response.json({ error: 'Failed to fetch invoices' }, { status: 500 })
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ company: string }> }
+) {
+  const { company } = await params
+  const config = getCompanyConfig(company)
+  if (!config) return Response.json({ error: 'Unknown company' }, { status: 404 })
+
   try {
     const body = await request.json()
     const parsed = invoiceSchema.safeParse(body)
@@ -71,7 +87,7 @@ export async function POST(request: NextRequest) {
     const supabase = createServerClient()
 
     const { data: existing } = await supabase
-      .from('invoicesink')
+      .from(config.invoiceTable)
       .select('id')
       .eq('invoice_no', invoiceData.invoice_no)
       .single()
@@ -84,7 +100,7 @@ export async function POST(request: NextRequest) {
     const totals = calculateTotals(calculatedLines)
 
     const { data: invoice, error: invErr } = await supabase
-      .from('invoicesink')
+      .from(config.invoiceTable)
       .insert({ ...invoiceData, ...totals })
       .select()
       .single()
@@ -109,15 +125,15 @@ export async function POST(request: NextRequest) {
       total: l.total,
     }))
 
-    const { error: itemErr } = await supabase.from('invoice_itemsink').insert(itemRows)
+    const { error: itemErr } = await supabase.from(config.invoiceItemsTable).insert(itemRows)
     if (itemErr) {
-      await supabase.from('invoicesink').delete().eq('id', invoice.id)
+      await supabase.from(config.invoiceTable).delete().eq('id', invoice.id)
       return Response.json({ error: 'Failed to create invoice items', details: itemErr.message }, { status: 500 })
     }
 
     return Response.json(invoice, { status: 201 })
   } catch (err) {
-    console.error(err)
+    console.error(`[POST /api/${company}/invoices]`, err)
     return Response.json({ error: 'Failed to create invoice' }, { status: 500 })
   }
 }

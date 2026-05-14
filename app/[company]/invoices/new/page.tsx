@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useForm, useFieldArray, useWatch, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import type { Company, Item, PaymentMethod } from '@/lib/types/database'
+import { ItemCombobox } from '@/components/ItemCombobox'
 import { calculateLine, calculateTotals, fmt } from '@/lib/utils/calculateInvoice'
 import type { InvoiceLineInput } from '@/lib/types/invoice'
 
@@ -50,8 +51,11 @@ const BLANK_LINE = {
   cgst_percent: 9,
 }
 
-export default function NewInvoicePage() {
+export default function NewCompanyInvoicePage() {
+  const { company } = useParams<{ company: string }>()
   const router = useRouter()
+  const base = `/${company}`
+
   const [companies, setCompanies] = useState<Company[]>([])
   const [items, setItems] = useState<Item[]>([])
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
@@ -60,14 +64,7 @@ export default function NewInvoicePage() {
   const [savingPdf, setSavingPdf] = useState(false)
   const [serverError, setServerError] = useState('')
 
-  const {
-    register,
-    control,
-    handleSubmit,
-    setValue,
-    getValues,
-    formState: { errors },
-  } = useForm<FormValues>({
+  const { register, control, handleSubmit, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
       invoice_date: new Date().toISOString().slice(0, 10),
@@ -83,7 +80,7 @@ export default function NewInvoicePage() {
     Promise.all([
       fetch('/api/companies').then((r) => r.json()),
       fetch('/api/items').then((r) => r.json()),
-      fetch('/api/invoices/next-number').then((r) => r.json()),
+      fetch(`/api/${company}/invoices/next-number`).then((r) => r.json()),
       fetch('/api/payment-methods').then((r) => r.json()),
     ]).then(([c, i, num, pm]) => {
       setCompanies(Array.isArray(c) ? c : [])
@@ -97,23 +94,19 @@ export default function NewInvoicePage() {
         setValue('payment_details', defaultMethod.payment_details)
       }
     })
-  }, [])
+  }, [company])
 
-  // When an item is selected from the catalog, prefill the line
-  function applyItem(index: number, itemId: string) {
-    const item = items.find((i) => i.id === itemId)
-    if (!item) return
-    const half = Math.round(item.gst_percent / 2 * 100) / 100
-    setValue(`lines.${index}.description`, item.item_name)
+  function applyItem(index: number, item: Item) {
+    const half = Math.round((item.gst_percent / 2) * 100) / 100
+    setValue(`lines.${index}.item_id`, item.id)
+    setValue(`lines.${index}.description`, item.description || item.item_name)
     setValue(`lines.${index}.hsn_sac`, item.hsn_sac ?? '')
     setValue(`lines.${index}.unit`, item.unit)
     setValue(`lines.${index}.rate`, item.default_rate)
     setValue(`lines.${index}.sgst_percent`, half)
     setValue(`lines.${index}.cgst_percent`, half)
-    setValue(`lines.${index}.item_id`, itemId)
   }
 
-  // Live totals
   const calcLines = (watchedLines ?? []).map((l) =>
     calculateLine({
       item_id: l?.item_id ?? null,
@@ -132,7 +125,7 @@ export default function NewInvoicePage() {
     setSaving(true)
     setServerError('')
     try {
-      const r = await fetch('/api/invoices', {
+      const r = await fetch(`/api/${company}/invoices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -147,7 +140,7 @@ export default function NewInvoicePage() {
 
       if (generatePdf) {
         setSavingPdf(true)
-        const pr = await fetch(`/api/invoices/${data.id}/pdf`)
+        const pr = await fetch(`/api/${company}/invoices/${data.id}/pdf`)
         if (pr.ok) {
           const blob = await pr.blob()
           const url = URL.createObjectURL(blob)
@@ -159,7 +152,7 @@ export default function NewInvoicePage() {
         }
       }
 
-      router.push(`/invoices/${data.id}`)
+      router.push(`${base}/invoices/${data.id}`)
     } catch (e: any) {
       setServerError(e.message)
     } finally {
@@ -182,17 +175,16 @@ export default function NewInvoicePage() {
       )}
 
       <form className="space-y-6">
-        {/* ── Invoice Meta ── */}
         <Section title="Invoice Details">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <Field label="Invoice Number *" error={errors.invoice_no?.message}>
-              <input {...register('invoice_no')} className={inp(!!errors.invoice_no)} placeholder="INK-2025-001" />
+              <input {...register('invoice_no')} className={inp(!!errors.invoice_no)} placeholder="INV-001" />
             </Field>
             <Field label="Invoice Date *" error={errors.invoice_date?.message}>
               <input type="date" {...register('invoice_date')} className={inp(!!errors.invoice_date)} />
             </Field>
             <Field label="Place of Supply">
-              <input {...register('place_of_supply')} className={inp()} placeholder="Telangana" />
+              <input {...register('place_of_supply')} className={inp()} placeholder="Tamil Nadu" />
             </Field>
             <Field label="Purchase Order No.">
               <input {...register('purchase_order_no')} className={inp()} placeholder="PO-001" />
@@ -206,7 +198,6 @@ export default function NewInvoicePage() {
           </div>
         </Section>
 
-        {/* ── Company Selection ── */}
         <Section title="Parties">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="Bill To (Client) *" error={errors.bill_to_company_id?.message}>
@@ -232,12 +223,10 @@ export default function NewInvoicePage() {
           </div>
         </Section>
 
-        {/* ── Line Items ── */}
         <Section title="Items & Services">
           {(errors.lines as any)?.message && (
             <p className="text-xs text-red-600 mb-3">{(errors.lines as any).message}</p>
           )}
-
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-225">
               <thead>
@@ -262,21 +251,13 @@ export default function NewInvoicePage() {
                   return (
                     <tr key={field.id} className="align-top">
                       <td className="pt-3 pr-2 text-gray-400 text-xs">{i + 1}</td>
-
-                      {/* Catalog picker */}
                       <td className="pt-2 pr-2">
-                        <select
-                          className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900"
-                          onChange={(e) => applyItem(i, e.target.value)}
-                          defaultValue=""
-                        >
-                          <option value="">Pick item…</option>
-                          {items.map((it) => (
-                            <option key={it.id} value={it.id}>{it.item_name}</option>
-                          ))}
-                        </select>
+                        <ItemCombobox
+                          items={items}
+                          selectedItemId={watchedLines?.[i]?.item_id}
+                          onSelect={(item) => applyItem(i, item)}
+                        />
                       </td>
-
                       <td className="pt-2 pr-2">
                         <input
                           {...register(`lines.${i}.description`)}
@@ -285,45 +266,27 @@ export default function NewInvoicePage() {
                         />
                         {lineErrors?.description && <p className="text-red-500 text-xs mt-0.5">{lineErrors.description.message}</p>}
                       </td>
-
                       <td className="pt-2 pr-2">
-                        <input {...register(`lines.${i}.hsn_sac`)} className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900" placeholder="998912" />
+                        <input {...register(`lines.${i}.hsn_sac`)} className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none" placeholder="998912" />
                       </td>
-
                       <td className="pt-2 pr-2">
-                        <input
-                          type="number"
-                          step="0.01"
-                          {...register(`lines.${i}.qty`)}
-                          className={`w-full px-2 py-1.5 text-xs border rounded-lg text-right focus:outline-none focus:ring-1 focus:ring-gray-900 ${lineErrors?.qty ? 'border-red-400' : 'border-gray-200'}`}
-                        />
+                        <input type="number" step="0.01" {...register(`lines.${i}.qty`)} className={`w-full px-2 py-1.5 text-xs border rounded-lg text-right focus:outline-none ${lineErrors?.qty ? 'border-red-400' : 'border-gray-200'}`} />
                       </td>
-
                       <td className="pt-2 pr-2">
                         <input {...register(`lines.${i}.unit`)} className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none" placeholder="NOS" />
                       </td>
-
                       <td className="pt-2 pr-2">
-                        <input
-                          type="number"
-                          step="0.01"
-                          {...register(`lines.${i}.rate`)}
-                          className={`w-full px-2 py-1.5 text-xs border rounded-lg text-right focus:outline-none focus:ring-1 focus:ring-gray-900 ${lineErrors?.rate ? 'border-red-400' : 'border-gray-200'}`}
-                        />
+                        <input type="number" step="0.01" {...register(`lines.${i}.rate`)} className={`w-full px-2 py-1.5 text-xs border rounded-lg text-right focus:outline-none ${lineErrors?.rate ? 'border-red-400' : 'border-gray-200'}`} />
                       </td>
-
                       <td className="pt-2 pr-2">
                         <input type="number" step="0.01" {...register(`lines.${i}.sgst_percent`)} className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg text-right focus:outline-none" />
                       </td>
-
                       <td className="pt-2 pr-2">
                         <input type="number" step="0.01" {...register(`lines.${i}.cgst_percent`)} className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg text-right focus:outline-none" />
                       </td>
-
                       <td className="pt-3 pr-2 text-right font-medium text-gray-900 text-xs whitespace-nowrap">
                         ₹ {fmt(line?.total ?? 0)}
                       </td>
-
                       <td className="pt-3">
                         {fields.length > 1 && (
                           <button type="button" onClick={() => remove(i)} className="text-red-400 hover:text-red-600 text-lg leading-none">×</button>
@@ -336,39 +299,23 @@ export default function NewInvoicePage() {
             </table>
           </div>
 
-          <button
-            type="button"
-            onClick={() => append({ ...BLANK_LINE })}
-            className="mt-3 text-sm text-blue-600 hover:text-blue-800"
-          >
+          <button type="button" onClick={() => append({ ...BLANK_LINE })} className="mt-3 text-sm text-blue-600 hover:text-blue-800">
             + Add Line
           </button>
 
-          {/* Totals */}
           <div className="mt-5 flex justify-end">
             <div className="w-72 space-y-2 text-sm">
-              <div className="flex justify-between text-gray-600">
-                <span>Subtotal</span>
-                <span>₹ {fmt(totals.subtotal)}</span>
-              </div>
-              <div className="flex justify-between text-gray-600">
-                <span>Total SGST</span>
-                <span>₹ {fmt(totals.total_sgst)}</span>
-              </div>
-              <div className="flex justify-between text-gray-600">
-                <span>Total CGST</span>
-                <span>₹ {fmt(totals.total_cgst)}</span>
-              </div>
+              <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>₹ {fmt(totals.subtotal)}</span></div>
+              <div className="flex justify-between text-gray-600"><span>Total SGST</span><span>₹ {fmt(totals.total_sgst)}</span></div>
+              <div className="flex justify-between text-gray-600"><span>Total CGST</span><span>₹ {fmt(totals.total_cgst)}</span></div>
               <div className="flex justify-between font-bold text-gray-900 border-t border-gray-200 pt-2">
-                <span>Grand Total</span>
-                <span>₹ {fmt(totals.grand_total)}</span>
+                <span>Grand Total</span><span>₹ {fmt(totals.grand_total)}</span>
               </div>
               <p className="text-xs text-gray-400 italic">{totals.amount_in_words}</p>
             </div>
           </div>
         </Section>
 
-        {/* ── Additional Details ── */}
         <Section title="Additional Details">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -394,21 +341,11 @@ export default function NewInvoicePage() {
                 </select>
               </Field>
               <Field label="Payment Details">
-                <textarea
-                  {...register('payment_details')}
-                  rows={3}
-                  className={inp()}
-                  placeholder="Bank name, account number, IFSC…"
-                />
+                <textarea {...register('payment_details')} rows={3} className={inp()} placeholder="Bank name, account number, IFSC…" />
               </Field>
             </div>
             <Field label="Notes / Terms">
-              <textarea
-                {...register('notes')}
-                rows={3}
-                className={inp()}
-                placeholder="Payment terms, delivery notes…"
-              />
+              <textarea {...register('notes')} rows={3} className={inp()} placeholder="Payment terms, delivery notes…" />
             </Field>
             <Field label="Common Seal / Signatory Text">
               <input {...register('common_seal_text')} className={inp()} placeholder="Authorised Signatory" />
@@ -416,7 +353,6 @@ export default function NewInvoicePage() {
           </div>
         </Section>
 
-        {/* ── Actions ── */}
         <div className="flex flex-wrap gap-3 pt-2">
           <button
             type="button"
@@ -434,11 +370,7 @@ export default function NewInvoicePage() {
           >
             {savingPdf ? 'Generating PDF…' : 'Save & Download PDF'}
           </button>
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="px-6 py-2.5 text-sm text-gray-600 hover:text-gray-900"
-          >
+          <button type="button" onClick={() => router.back()} className="px-6 py-2.5 text-sm text-gray-600 hover:text-gray-900">
             Cancel
           </button>
         </div>
@@ -469,7 +401,5 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 function inp(hasError = false) {
-  return `w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 ${
-    hasError ? 'border-red-400' : 'border-gray-200'
-  }`
+  return `w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 ${hasError ? 'border-red-400' : 'border-gray-200'}`
 }

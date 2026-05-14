@@ -8,9 +8,9 @@ import {
   StyleSheet,
   type Styles,
 } from '@react-pdf/renderer'
-import { BUSINESS, PAYMENT_LINE } from '@/lib/config/business'
 import { fmt } from '@/lib/utils/calculateInvoice'
 import type { InvoiceWithRelations } from '@/lib/types/invoice'
+import type { CompanyPdfConfig } from '@/lib/config/companies'
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 
@@ -45,7 +45,6 @@ const S = StyleSheet.create({
     backgroundColor: C.white,
   },
 
-  // ── Hero header block ──
   hero: {
     flexDirection: 'row',
     backgroundColor: C.heroBlue,
@@ -53,13 +52,11 @@ const S = StyleSheet.create({
     padding: 16,
     marginBottom: 10,
   },
-  // LEFT = company details
   heroLeft: {
     flex: 1,
     paddingRight: 14,
     borderRight: `1pt solid ${C.border}`,
   },
-  // RIGHT = invoice details
   heroRight: {
     flex: 1,
     paddingLeft: 14,
@@ -95,7 +92,6 @@ const S = StyleSheet.create({
     marginTop: 2,
   },
 
-  // Invoice details (right side — right-aligned)
   heroTitle: {
     fontSize: 20,
     fontFamily: 'Helvetica-Bold',
@@ -118,7 +114,6 @@ const S = StyleSheet.create({
     textAlign: 'right',
   },
 
-  // ── Meta strip (PO, ref, delivery, other ref) ──
   metaStrip: {
     flexDirection: 'row',
     backgroundColor: C.stripGray,
@@ -148,7 +143,6 @@ const S = StyleSheet.create({
     color: C.dark,
   },
 
-  // ── Party cards ──
   partyRow: {
     flexDirection: 'row',
     marginBottom: 10,
@@ -196,7 +190,6 @@ const S = StyleSheet.create({
     marginBottom: 1,
   },
 
-  // ── Items table ──
   table: {
     border: `0.5pt solid ${C.border}`,
     borderRadius: 6,
@@ -260,7 +253,6 @@ const S = StyleSheet.create({
     marginTop: 1,
   },
 
-  // column widths
   colSno:   { width: 16 },
   colDesc:  { flex: 1 },
   colHsn:   { width: 40 },
@@ -270,7 +262,6 @@ const S = StyleSheet.create({
   colSgst:  { width: 52 },
   colAmt:   { width: 54 },
 
-  // ── Amount in words ──
   wordsRow: {
     flexDirection: 'row',
     marginBottom: 8,
@@ -296,7 +287,6 @@ const S = StyleSheet.create({
     color: C.dark,
   },
 
-  // ── Totals box ──
   totalsBox: {
     width: 190,
     border: `0.5pt solid ${C.border}`,
@@ -337,7 +327,6 @@ const S = StyleSheet.create({
     color: C.accent,
   },
 
-  // ── Tax summary ──
   taxSection: {
     border: `0.5pt solid ${C.border}`,
     borderRadius: 6,
@@ -402,7 +391,6 @@ const S = StyleSheet.create({
     paddingHorizontal: 5,
   },
 
-  // ── Payment info box ──
   paymentBox: {
     backgroundColor: C.paymentBg,
     border: `0.5pt solid ${C.paymentBorder}`,
@@ -425,26 +413,11 @@ const S = StyleSheet.create({
     color: '#14532D',
   },
 
-  // ── Notes / Terms ──
-  notesBox: {
-    backgroundColor: C.stripGray,
-    border: `0.5pt solid ${C.border}`,
-    borderRadius: 6,
-    padding: 8,
-    marginBottom: 8,
-  },
-  notesLabel: {
-    fontSize: 6,
-    color: C.muted,
-    textTransform: 'uppercase',
-    marginBottom: 3,
-  },
   notesText: {
     fontSize: 7.5,
     color: C.dark,
   },
 
-  // ── Footer block (signatory only) ──
   footerBlock: {
     backgroundColor: C.stripGray,
     border: `0.5pt solid ${C.border}`,
@@ -526,36 +499,28 @@ function TD({
   )
 }
 
-// ── Header Section ────────────────────────────────────────────────────────────
-// LEFT: company/studio details   RIGHT: invoice details
+// ── Sections ──────────────────────────────────────────────────────────────────
 
 function HeaderSection({
   invoice,
   logoDataUrl,
+  biz,
 }: {
   invoice: InvoiceWithRelations
   logoDataUrl: string | null
+  biz: CompanyPdfConfig
 }) {
   return (
     <View style={S.hero}>
-      {/* LEFT: Company/studio details */}
       <View style={S.heroLeft}>
         {logoDataUrl && <Image style={S.logo} src={logoDataUrl} />}
-        <Text style={S.bizName}>{BUSINESS.name}</Text>
-        <Text style={S.bizTag}>{BUSINESS.tagline}</Text>
-        <Text style={S.bizLine}>
-          {BUSINESS.addressLine1}, {BUSINESS.addressLine2}
-        </Text>
-        <Text style={S.bizLine}>
-          {BUSINESS.city}, {BUSINESS.state} – {BUSINESS.pincode}
-        </Text>
-        <Text style={S.bizLine}>
-          {BUSINESS.phone}  ·  {BUSINESS.email}
-        </Text>
-        <Text style={S.bizGstin}>GSTIN: {BUSINESS.gstin}</Text>
+        <Text style={S.bizName}>{biz.name}</Text>
+        <Text style={S.bizTag}>{biz.tagline}</Text>
+        <Text style={S.bizLine}>{biz.addressLine1}, {biz.addressLine2}</Text>
+        <Text style={S.bizLine}>{biz.city}, {biz.state} – {biz.pincode}</Text>
+        <Text style={S.bizLine}>{biz.phone}  ·  {biz.email}</Text>
+        {biz.gstin ? <Text style={S.bizGstin}>GSTIN: {biz.gstin}</Text> : null}
       </View>
-
-      {/* RIGHT: Invoice details */}
       <View style={S.heroRight}>
         <Text style={S.heroTitle}>TAX INVOICE</Text>
         <Text style={S.heroMetaLabel}>Invoice No.</Text>
@@ -568,8 +533,6 @@ function HeaderSection({
     </View>
   )
 }
-
-// ── Meta Strip ────────────────────────────────────────────────────────────────
 
 function MetaStrip({ invoice }: { invoice: InvoiceWithRelations }) {
   const fields = [
@@ -589,8 +552,6 @@ function MetaStrip({ invoice }: { invoice: InvoiceWithRelations }) {
     </View>
   )
 }
-
-// ── Party Card ────────────────────────────────────────────────────────────────
 
 function PartyCard({
   label,
@@ -619,8 +580,6 @@ function PartyCard({
   )
 }
 
-// ── Items Table ───────────────────────────────────────────────────────────────
-
 function ItemsTable({ items }: { items: InvoiceWithRelations['invoice_items'] }) {
   return (
     <View style={S.table}>
@@ -642,34 +601,27 @@ function ItemsTable({ items }: { items: InvoiceWithRelations['invoice_items'] })
         return (
           <View key={line.id} style={rowStyle}>
             <TD style={S.colSno} align="center">{i + 1}</TD>
-
             <View style={[S.td, S.colDesc]}>
               <Text style={S.tdItemName}>{itemName}</Text>
               {desc && <Text style={S.tdItemDesc}>{desc}</Text>}
             </View>
-
             <TD style={S.colHsn} align="center">{line.hsn_sac || '—'}</TD>
-
             <TD style={S.colQty} align="center">
               {line.qty}{line.unit ? ` ${line.unit}` : ''}
             </TD>
-
             <TD style={S.colRate} align="right">{fmt(line.rate)}</TD>
-
             <View style={[S.td, S.colCgst]}>
               <Text style={[S.td, { borderRight: 0, padding: 0, fontSize: 7 }]}>
                 {line.cgst_percent}%
               </Text>
               <Text style={S.tdTaxLine}>₹ {fmt(line.cgst_amount)}</Text>
             </View>
-
             <View style={[S.td, S.colSgst]}>
               <Text style={[S.td, { borderRight: 0, padding: 0, fontSize: 7 }]}>
                 {line.sgst_percent}%
               </Text>
               <Text style={S.tdTaxLine}>₹ {fmt(line.sgst_amount)}</Text>
             </View>
-
             <TD style={S.colAmt} align="right" last>{fmt(line.total)}</TD>
           </View>
         )
@@ -677,8 +629,6 @@ function ItemsTable({ items }: { items: InvoiceWithRelations['invoice_items'] })
     </View>
   )
 }
-
-// ── Totals Box ────────────────────────────────────────────────────────────────
 
 function TotalsBox({ invoice }: { invoice: InvoiceWithRelations }) {
   return (
@@ -702,8 +652,6 @@ function TotalsBox({ invoice }: { invoice: InvoiceWithRelations }) {
     </View>
   )
 }
-
-// ── Tax Summary ───────────────────────────────────────────────────────────────
 
 function TaxSummary({ items }: { items: InvoiceWithRelations['invoice_items'] }) {
   return (
@@ -738,10 +686,9 @@ function TaxSummary({ items }: { items: InvoiceWithRelations['invoice_items'] })
   )
 }
 
-// ── Payment Info Box ──────────────────────────────────────────────────────────
-
-function PaymentBox({ invoice }: { invoice: InvoiceWithRelations }) {
-  const text = invoice.payment_details?.trim() || PAYMENT_LINE
+function PaymentBox({ invoice, biz }: { invoice: InvoiceWithRelations; biz: CompanyPdfConfig }) {
+  const defaultPaymentLine = `All payments can be made to ${biz.bank.accountName} | ${biz.bank.bankName} A/c no- ${biz.bank.accountNo} | IFSC-${biz.bank.ifsc}`
+  const text = invoice.payment_details?.trim() || defaultPaymentLine
   return (
     <View style={S.paymentBox}>
       <View>
@@ -752,13 +699,11 @@ function PaymentBox({ invoice }: { invoice: InvoiceWithRelations }) {
   )
 }
 
-// ── Footer Section (signatory only) ──────────────────────────────────────────
-
-function FooterSection({ invoice }: { invoice: InvoiceWithRelations }) {
+function FooterSection({ invoice, biz }: { invoice: InvoiceWithRelations; biz: CompanyPdfConfig }) {
   return (
     <View style={S.footerBlock}>
       <View style={S.footerSealCol}>
-        <Text style={S.footerForLabel}>For {BUSINESS.name}</Text>
+        <Text style={S.footerForLabel}>For {biz.name}</Text>
         <View style={S.footerSigLine} />
         <Text style={S.footerSigText}>
           {invoice.common_seal_text || 'Authorised Signatory'}
@@ -770,12 +715,14 @@ function FooterSection({ invoice }: { invoice: InvoiceWithRelations }) {
 
 // ── Main PDF component ────────────────────────────────────────────────────────
 
-export function InvoicePDF({
+export function BaseInvoicePDF({
   invoice,
   logoDataUrl,
+  bizConfig,
 }: {
   invoice: InvoiceWithRelations
   logoDataUrl: string | null
+  bizConfig: CompanyPdfConfig
 }) {
   const bill  = invoice.bill_to_company
   const ship  = invoice.ship_to_company
@@ -784,23 +731,13 @@ export function InvoicePDF({
   return (
     <Document title={`Invoice ${invoice.invoice_no}`}>
       <Page size="A4" style={S.page}>
-
-        {/* ── Company LEFT / Invoice details RIGHT ── */}
-        <HeaderSection invoice={invoice} logoDataUrl={logoDataUrl} />
-
-        {/* ── PO, Ref, Delivery meta strip ── */}
+        <HeaderSection invoice={invoice} logoDataUrl={logoDataUrl} biz={bizConfig} />
         <MetaStrip invoice={invoice} />
-
-        {/* ── Bill To / Ship To ── */}
         <View style={S.partyRow}>
           <PartyCard label="Bill To" company={bill} />
           <PartyCard label="Ship To" company={ship ?? bill} right />
         </View>
-
-        {/* ── Items table ── */}
         <ItemsTable items={items} />
-
-        {/* ── Amount in words + Totals ── */}
         <View style={S.wordsRow}>
           <View style={S.wordsBox}>
             <Text style={S.wordsLabel}>Total In Words</Text>
@@ -814,27 +751,12 @@ export function InvoicePDF({
           </View>
           <TotalsBox invoice={invoice} />
         </View>
-
-        {/* ── Tax summary ── */}
         <TaxSummary items={items} />
-
-        {/* ── Payment information ── */}
-        <PaymentBox invoice={invoice} />
-
-        {/* ── Terms ── */}
-        {/* <View style={S.notesBox}>
-          <Text style={S.notesLabel}>Terms &amp; Conditions</Text>
-          <Text style={S.notesText}>{BUSINESS.defaultTerms}</Text>
-        </View> */}
-
-        {/* ── Authorised signatory ── */}
-        <FooterSection invoice={invoice} />
-
-        {/* ── Footer note ── */}
+        <PaymentBox invoice={invoice} biz={bizConfig} />
+        <FooterSection invoice={invoice} biz={bizConfig} />
         <View style={S.footerNote}>
-          <Text style={S.footerNoteText}>{BUSINESS.defaultFooterNote}</Text>
+          <Text style={S.footerNoteText}>{bizConfig.defaultFooterNote}</Text>
         </View>
-
       </Page>
     </Document>
   )

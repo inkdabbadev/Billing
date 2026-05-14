@@ -102,7 +102,7 @@ export interface Invoice {
   payment_details: string | null
   common_seal_text: string | null
   notes: string | null
-  status: 'draft' | 'generated' | 'sent' | 'paid'
+  status: 'draft' | 'unpaid' | 'paid'
   created_at: string
   updated_at: string
 }
@@ -127,7 +127,7 @@ export interface InvoiceInsert {
   payment_details?: string | null
   common_seal_text?: string | null
   notes?: string | null
-  status?: 'draft' | 'generated' | 'sent' | 'paid'
+  status?: 'draft' | 'unpaid' | 'paid'
   created_at?: string
   updated_at?: string
 }

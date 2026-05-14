@@ -1,11 +1,10 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { fmt } from '@/lib/utils/calculateInvoice'
 import type { Company, Item } from '@/lib/types/database'
-
-// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Tab = 'companies' | 'invoices' | 'items' | 'drafts'
 
@@ -14,7 +13,7 @@ interface InvoiceRow {
   invoice_no: string
   invoice_date: string
   grand_total: number
-  status: 'draft' | 'generated' | 'sent' | 'paid'
+  status: 'draft' | 'unpaid' | 'paid'
   bill_to_company_id: string | null
   bill_to_company: { id: string; company_name: string; branch: string | null } | null
 }
@@ -41,8 +40,6 @@ interface ComputedStats {
   paidCount: number
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
 const STATUS_COLOR: Record<string, string> = {
   draft:  'bg-gray-100 text-gray-600',
   unpaid: 'bg-amber-100 text-amber-700',
@@ -51,16 +48,14 @@ const STATUS_COLOR: Record<string, string> = {
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'companies', label: 'Companies' },
-  { id: 'invoices', label: 'Invoices' },
-  { id: 'items', label: 'Items' },
-  { id: 'drafts', label: 'Drafts' },
+  { id: 'invoices',  label: 'Invoices' },
+  { id: 'items',     label: 'Items' },
+  { id: 'drafts',    label: 'Drafts' },
 ]
 
 const isDraft  = (s: string) => s === 'draft'
 const isUnpaid = (s: string) => s === 'unpaid'
 const isPaid   = (s: string) => s === 'paid'
-
-// ── Stat computation ──────────────────────────────────────────────────────────
 
 function computeStats(
   tab: Tab,
@@ -80,9 +75,7 @@ function computeStats(
 
   if (tab === 'companies') {
     if (selCompanies.size > 0) {
-      working = invoices.filter(
-        (i) => i.bill_to_company_id && selCompanies.has(i.bill_to_company_id)
-      )
+      working = invoices.filter((i) => i.bill_to_company_id && selCompanies.has(i.bill_to_company_id))
       totalCount = selCompanies.size
       totalLabel = selCompanies.size === 1 ? 'Company' : 'Companies'
       totalSub = `${working.length} invoice${working.length !== 1 ? 's' : ''}`
@@ -120,7 +113,6 @@ function computeStats(
       totalSub = 'In catalog'
     }
   } else {
-    // drafts tab
     if (selDrafts.size > 0) {
       working = allDrafts.filter((i) => selDrafts.has(i.id))
       totalCount = working.length
@@ -142,9 +134,10 @@ function computeStats(
   return { totalCount, totalLabel, totalSub, revenue, pending, draftCount, paidCount }
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+export default function CompanyDashboardPage() {
+  const { company } = useParams<{ company: string }>()
+  const base = `/${company}`
 
-export default function DashboardPage() {
   const [tab, setTab]                   = useState<Tab>('companies')
   const [selCompanies, setSelCompanies] = useState<Set<string>>(new Set())
   const [selInvoices, setSelInvoices]   = useState<Set<string>>(new Set())
@@ -155,7 +148,7 @@ export default function DashboardPage() {
   const [fetchError, setFetchError]     = useState('')
 
   useEffect(() => {
-    fetch('/api/dashboard')
+    fetch(`/api/${company}/dashboard`)
       .then(async (r) => {
         if (!r.ok) throw new Error('Failed to load dashboard data')
         return r.json()
@@ -166,9 +159,8 @@ export default function DashboardPage() {
         setFetchError(e.message)
       })
       .finally(() => setLoading(false))
-  }, [])
+  }, [company])
 
-  // Per-company: invoice count and pending amount
   const companyStats = useMemo(() => {
     const map = new Map<string, { invoiceCount: number; pending: number }>()
     if (!data) return map
@@ -182,7 +174,6 @@ export default function DashboardPage() {
     return map
   }, [data])
 
-  // Per-item: how many distinct invoices use it
   const itemUsage = useMemo(() => {
     const map = new Map<string, number>()
     if (!data) return map
@@ -239,11 +230,8 @@ export default function DashboardPage() {
     return `${n} ${noun} selected`
   })()
 
-  // ── Render ──────────────────────────────────────────────────────────────────
-
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-8">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
@@ -252,7 +240,7 @@ export default function DashboardPage() {
           </p>
         </div>
         <Link
-          href="/invoices/new"
+          href={`${base}/invoices/new`}
           className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-900 text-white text-xs sm:text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors shrink-0"
         >
           + New Invoice
@@ -273,26 +261,14 @@ export default function DashboardPage() {
         </div>
       ) : data && stats ? (
         <>
-          {/* ── Stat Cards ── */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
             <StatCard label={stats.totalLabel} value={stats.totalCount} sub={stats.totalSub} />
-            <StatCard
-              label="Revenue Collected"
-              value={`₹ ${fmt(stats.revenue)}`}
-              sub="From paid invoices"
-              highlight
-            />
-            <StatCard
-              label="Overall Pending"
-              value={`₹ ${fmt(stats.pending)}`}
-              sub="Unpaid invoices"
-              warning
-            />
-            <StatCard label="Drafts" value={stats.draftCount} sub="Draft / Generated" />
+            <StatCard label="Revenue Collected" value={`₹ ${fmt(stats.revenue)}`} sub="From paid invoices" highlight />
+            <StatCard label="Overall Pending" value={`₹ ${fmt(stats.pending)}`} sub="Unpaid invoices" warning />
+            <StatCard label="Drafts" value={stats.draftCount} sub="Pending generation" />
             <StatCard label="Paid" value={stats.paidCount} sub="Completed invoices" />
           </div>
 
-          {/* ── Filter Tabs ── */}
           <div className="flex gap-1.5 overflow-x-auto pb-1 mb-3 scrollbar-none">
             {TABS.map((t) => {
               const tabSel =
@@ -313,11 +289,9 @@ export default function DashboardPage() {
                 >
                   {t.label}
                   {tabSel.size > 0 && (
-                    <span
-                      className={`min-w-4.5 h-4.5 px-1 rounded-full text-[10px] font-bold leading-4.5 text-center inline-block ${
-                        isActive ? 'bg-white text-gray-900' : 'bg-blue-500 text-white'
-                      }`}
-                    >
+                    <span className={`min-w-4.5 h-4.5 px-1 rounded-full text-[10px] font-bold leading-4.5 text-center inline-block ${
+                      isActive ? 'bg-white text-gray-900' : 'bg-blue-500 text-white'
+                    }`}>
                       {tabSel.size}
                     </span>
                   )}
@@ -326,56 +300,30 @@ export default function DashboardPage() {
             })}
           </div>
 
-          {/* ── Selection banner ── */}
           <div className="flex items-center justify-between mb-4 h-6">
             {selNoun ? (
               <>
                 <p className="text-sm font-medium text-gray-700">{selNoun}</p>
-                <button
-                  onClick={clearSelection}
-                  className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
-                >
+                <button onClick={clearSelection} className="text-xs text-gray-400 hover:text-gray-700 transition-colors">
                   Clear ×
                 </button>
               </>
             ) : (
-              <p className="text-xs text-gray-400">
-                Showing all data — select cards to filter
-              </p>
+              <p className="text-xs text-gray-400">Showing all data — select cards to filter</p>
             )}
           </div>
 
-          {/* ── Tab Content ── */}
           {tab === 'companies' && (
-            <CompanyGrid
-              companies={data.companies}
-              companyStats={companyStats}
-              selected={selCompanies}
-              onToggle={toggle}
-            />
+            <CompanyGrid companies={data.companies} companyStats={companyStats} selected={selCompanies} onToggle={toggle} />
           )}
           {tab === 'invoices' && (
-            <InvoiceList
-              invoices={data.invoices}
-              selected={selInvoices}
-              onToggle={toggle}
-            />
+            <InvoiceList invoices={data.invoices} selected={selInvoices} onToggle={toggle} base={base} />
           )}
           {tab === 'items' && (
-            <ItemGrid
-              items={data.items}
-              itemUsage={itemUsage}
-              selected={selItems}
-              onToggle={toggle}
-            />
+            <ItemGrid items={data.items} itemUsage={itemUsage} selected={selItems} onToggle={toggle} />
           )}
           {tab === 'drafts' && (
-            <InvoiceList
-              invoices={draftInvoices}
-              selected={selDrafts}
-              onToggle={toggle}
-              emptyMsg="No draft or generated invoices."
-            />
+            <InvoiceList invoices={draftInvoices} selected={selDrafts} onToggle={toggle} base={base} emptyMsg="No draft invoices." />
           )}
         </>
       ) : null}
@@ -383,13 +331,8 @@ export default function DashboardPage() {
   )
 }
 
-// ── Company Grid ──────────────────────────────────────────────────────────────
-
 function CompanyGrid({
-  companies,
-  companyStats,
-  selected,
-  onToggle,
+  companies, companyStats, selected, onToggle,
 }: {
   companies: Company[]
   companyStats: Map<string, { invoiceCount: number; pending: number }>
@@ -397,12 +340,7 @@ function CompanyGrid({
   onToggle: (id: string) => void
 }) {
   if (!companies.length)
-    return (
-      <EmptyState
-        msg="No companies found."
-        action={<Link href="/companies" className="text-sm text-blue-600">Add your first company →</Link>}
-      />
-    )
+    return <EmptyState msg="No companies found." />
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -414,30 +352,20 @@ function CompanyGrid({
             key={c.id}
             onClick={() => onToggle(c.id)}
             className={`text-left p-4 rounded-xl border transition-all duration-150 w-full ${
-              isSel
-                ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-200 shadow-sm'
-                : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+              isSel ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-200 shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
             }`}
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-sm text-gray-900 truncate">{c.company_name}</p>
-                {c.branch && (
-                  <p className="text-xs text-blue-600 font-medium truncate mt-0.5">{c.branch}</p>
-                )}
-                {c.gstin && (
-                  <p className="text-[10px] text-gray-400 font-mono mt-0.5 truncate">{c.gstin}</p>
-                )}
+                {c.branch && <p className="text-xs text-blue-600 font-medium truncate mt-0.5">{c.branch}</p>}
+                {c.gstin && <p className="text-[10px] text-gray-400 font-mono mt-0.5 truncate">{c.gstin}</p>}
               </div>
               {isSel && <Checkmark />}
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
-              <span className="text-gray-500">
-                {s?.invoiceCount ?? 0} invoice{(s?.invoiceCount ?? 0) !== 1 ? 's' : ''}
-              </span>
-              {(s?.pending ?? 0) > 0 && (
-                <span className="text-amber-600 font-medium">₹ {fmt(s!.pending)} pending</span>
-              )}
+              <span className="text-gray-500">{s?.invoiceCount ?? 0} invoice{(s?.invoiceCount ?? 0) !== 1 ? 's' : ''}</span>
+              {(s?.pending ?? 0) > 0 && <span className="text-amber-600 font-medium">₹ {fmt(s!.pending)} pending</span>}
             </div>
           </button>
         )
@@ -446,13 +374,8 @@ function CompanyGrid({
   )
 }
 
-// ── Item Grid ─────────────────────────────────────────────────────────────────
-
 function ItemGrid({
-  items,
-  itemUsage,
-  selected,
-  onToggle,
+  items, itemUsage, selected, onToggle,
 }: {
   items: Item[]
   itemUsage: Map<string, number>
@@ -460,12 +383,7 @@ function ItemGrid({
   onToggle: (id: string) => void
 }) {
   if (!items.length)
-    return (
-      <EmptyState
-        msg="No items found."
-        action={<Link href="/items" className="text-sm text-blue-600">Add your first item →</Link>}
-      />
-    )
+    return <EmptyState msg="No items found." />
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -477,33 +395,20 @@ function ItemGrid({
             key={it.id}
             onClick={() => onToggle(it.id)}
             className={`text-left p-4 rounded-xl border transition-all duration-150 w-full ${
-              isSel
-                ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-200 shadow-sm'
-                : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+              isSel ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-200 shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
             }`}
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-sm text-gray-900 truncate">{it.item_name}</p>
-                {it.hsn_sac && (
-                  <p className="text-[10px] text-gray-400 font-mono mt-0.5">HSN {it.hsn_sac}</p>
-                )}
+                {it.hsn_sac && <p className="text-[10px] text-gray-400 font-mono mt-0.5">HSN {it.hsn_sac}</p>}
               </div>
               {isSel && <Checkmark />}
             </div>
             <div className="mt-3 grid grid-cols-3 gap-x-2 text-[11px]">
-              <div>
-                <p className="text-gray-400">Rate</p>
-                <p className="font-semibold text-gray-700 mt-0.5">₹ {fmt(it.default_rate)}</p>
-              </div>
-              <div>
-                <p className="text-gray-400">GST</p>
-                <p className="font-semibold text-gray-700 mt-0.5">{it.gst_percent}%</p>
-              </div>
-              <div>
-                <p className="text-gray-400">Used in</p>
-                <p className="font-semibold text-gray-700 mt-0.5">{used} inv.</p>
-              </div>
+              <div><p className="text-gray-400">Rate</p><p className="font-semibold text-gray-700 mt-0.5">₹ {fmt(it.default_rate)}</p></div>
+              <div><p className="text-gray-400">GST</p><p className="font-semibold text-gray-700 mt-0.5">{it.gst_percent}%</p></div>
+              <div><p className="text-gray-400">Used in</p><p className="font-semibold text-gray-700 mt-0.5">{used} inv.</p></div>
             </div>
           </button>
         )
@@ -512,34 +417,25 @@ function ItemGrid({
   )
 }
 
-// ── Invoice List (shared by Invoices + Drafts tabs) ───────────────────────────
-
 function InvoiceList({
-  invoices,
-  selected,
-  onToggle,
-  emptyMsg,
+  invoices, selected, onToggle, base, emptyMsg,
 }: {
   invoices: InvoiceRow[]
   selected: Set<string>
   onToggle: (id: string) => void
+  base: string
   emptyMsg?: string
 }) {
   if (!invoices.length)
     return (
       <EmptyState
         msg={emptyMsg ?? 'No invoices found.'}
-        action={
-          <Link href="/invoices/new" className="text-sm text-blue-600">
-            Create your first invoice →
-          </Link>
-        }
+        action={<Link href={`${base}/invoices/new`} className="text-sm text-blue-600">Create your first invoice →</Link>}
       />
     )
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-      {/* Mobile card list */}
       <div className="sm:hidden divide-y divide-gray-50">
         {invoices.map((inv) => {
           const isSel = selected.has(inv.id)
@@ -555,23 +451,17 @@ function InvoiceList({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <Link
-                    href={`/invoices/${inv.id}`}
+                    href={`${base}/invoices/${inv.id}`}
                     onClick={(e) => e.stopPropagation()}
                     className="font-semibold text-sm text-gray-900 hover:underline truncate"
                   >
                     {inv.invoice_no}
                   </Link>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-medium capitalize shrink-0 ${
-                      STATUS_COLOR[inv.status] ?? 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium capitalize shrink-0 ${STATUS_COLOR[inv.status] ?? 'bg-gray-100 text-gray-600'}`}>
                     {inv.status}
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5 truncate">
-                  {inv.bill_to_company?.company_name ?? '—'}
-                </p>
+                <p className="text-xs text-gray-500 mt-0.5 truncate">{inv.bill_to_company?.company_name ?? '—'}</p>
                 <div className="flex items-center justify-between mt-0.5">
                   <p className="text-xs text-gray-400">{inv.invoice_date}</p>
                   <p className="text-sm font-semibold text-gray-900">₹ {fmt(inv.grand_total)}</p>
@@ -582,7 +472,6 @@ function InvoiceList({
         })}
       </div>
 
-      {/* Desktop table */}
       <table className="hidden sm:table w-full text-sm">
         <thead>
           <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide">
@@ -605,31 +494,21 @@ function InvoiceList({
                   isSel ? 'bg-blue-50' : 'hover:bg-gray-50'
                 }`}
               >
-                <td className="pl-5 pr-2 py-3">
-                  <RowCheck checked={isSel} />
-                </td>
+                <td className="pl-5 pr-2 py-3"><RowCheck checked={isSel} /></td>
                 <td className="px-3 py-3">
                   <Link
-                    href={`/invoices/${inv.id}`}
+                    href={`${base}/invoices/${inv.id}`}
                     onClick={(e) => e.stopPropagation()}
                     className="font-medium text-gray-900 hover:underline"
                   >
                     {inv.invoice_no}
                   </Link>
                 </td>
-                <td className="px-3 py-3 text-gray-600 max-w-50 truncate">
-                  {inv.bill_to_company?.company_name ?? '—'}
-                </td>
+                <td className="px-3 py-3 text-gray-600 max-w-50 truncate">{inv.bill_to_company?.company_name ?? '—'}</td>
                 <td className="px-3 py-3 text-gray-500 whitespace-nowrap">{inv.invoice_date}</td>
-                <td className="px-3 py-3 text-right font-semibold text-gray-900 whitespace-nowrap">
-                  ₹ {fmt(inv.grand_total)}
-                </td>
+                <td className="px-3 py-3 text-right font-semibold text-gray-900 whitespace-nowrap">₹ {fmt(inv.grand_total)}</td>
                 <td className="px-3 py-3 pr-5">
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
-                      STATUS_COLOR[inv.status] ?? 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLOR[inv.status] ?? 'bg-gray-100 text-gray-600'}`}>
                     {inv.status}
                   </span>
                 </td>
@@ -642,26 +521,13 @@ function InvoiceList({
   )
 }
 
-// ── Shared small components ───────────────────────────────────────────────────
-
-function StatCard({
-  label,
-  value,
-  sub,
-  highlight,
-  warning,
-}: {
-  label: string
-  value: string | number
-  sub: string
-  highlight?: boolean
-  warning?: boolean
+function StatCard({ label, value, sub, highlight, warning }: {
+  label: string; value: string | number; sub: string; highlight?: boolean; warning?: boolean
 }) {
   const bg     = highlight ? 'bg-gray-900 border-gray-900' : warning ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'
   const lblClr = highlight ? 'text-gray-400' : warning ? 'text-amber-600' : 'text-gray-500'
   const valClr = highlight ? 'text-white' : warning ? 'text-amber-700' : 'text-gray-900'
   const subClr = highlight ? 'text-gray-500' : warning ? 'text-amber-500' : 'text-gray-400'
-
   return (
     <div className={`rounded-xl p-4 sm:p-5 border ${bg}`}>
       <p className={`text-[11px] sm:text-xs font-medium mb-1.5 leading-tight ${lblClr}`}>{label}</p>
@@ -683,11 +549,7 @@ function Checkmark() {
 
 function RowCheck({ checked }: { checked: boolean }) {
   return (
-    <div
-      className={`shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
-        checked ? 'border-blue-500 bg-blue-500' : 'border-gray-200'
-      }`}
-    >
+    <div className={`shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${checked ? 'border-blue-500 bg-blue-500' : 'border-gray-200'}`}>
       {checked && (
         <svg className="w-2 h-2 text-white" viewBox="0 0 10 10" fill="none">
           <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -701,19 +563,13 @@ function LoadingSkeleton() {
   return (
     <div className="space-y-4 animate-pulse">
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-24 bg-gray-100 rounded-xl" />
-        ))}
+        {[...Array(5)].map((_, i) => <div key={i} className="h-24 bg-gray-100 rounded-xl" />)}
       </div>
       <div className="flex gap-2">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-9 w-24 bg-gray-100 rounded-lg" />
-        ))}
+        {[...Array(4)].map((_, i) => <div key={i} className="h-9 w-24 bg-gray-100 rounded-lg" />)}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-28 bg-gray-100 rounded-xl" />
-        ))}
+        {[...Array(6)].map((_, i) => <div key={i} className="h-28 bg-gray-100 rounded-xl" />)}
       </div>
     </div>
   )

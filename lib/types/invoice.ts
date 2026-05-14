@@ -30,7 +30,7 @@ export interface InvoiceFormValues {
   payment_details: string
   common_seal_text: string
   notes: string
-  status: 'draft' | 'generated' | 'sent' | 'paid'
+  status: 'draft' | 'unpaid' | 'paid'
   lines: InvoiceLineInput[]
 }
 
