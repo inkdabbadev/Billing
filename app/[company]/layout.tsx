@@ -25,7 +25,7 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
 
   if (!config) return null
 
-  const { theme } = config
+  const { theme, pdf } = config
   const base = `/${company}`
   const nav = [
     { href: `${base}/dashboard`,  label: 'Dashboard',        icon: '⊞' },
@@ -90,13 +90,13 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
         >
           ← Switch Company
         </Link>
-        {config.pdf.gstin && (
+        {pdf.gstin && (
           <p className="text-[10px] leading-tight mt-1" style={{ color: theme.subText }}>
-            {config.pdf.gstin}
+            {pdf.gstin}
           </p>
         )}
         <p className="text-[10px] leading-tight mt-0.5" style={{ color: theme.subText }}>
-          {config.pdf.email}
+          {pdf.email}
         </p>
       </div>
     )
