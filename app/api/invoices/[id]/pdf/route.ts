@@ -17,23 +17,32 @@ export async function GET(
 
     const { data: invoice, error } = await supabase
       .from('invoicesink')
-      .select(`
-        *,
-        bill_to_company:companies!bill_to_company_id(*),
-        ship_to_company:companies!ship_to_company_id(*)
-      `)
+      .select('*')
       .eq('id', id)
       .single()
+
+    if (error || !invoice) {
+      console.error('[GET /api/invoices/[id]/pdf] invoicesink', error)
+      return Response.json({ error: 'Invoice not found' }, { status: 404 })
+    }
+
+    const companyIds = [invoice.bill_to_company_id, invoice.ship_to_company_id].filter(Boolean)
+    const companiesMap: Record<string, any> = {}
+    if (companyIds.length > 0) {
+      const { data: companies } = await supabase.from('companies').select('*').in('id', companyIds)
+      for (const c of companies ?? []) companiesMap[c.id] = c
+    }
 
     const { data: invoiceItems } = await supabase
       .from('invoice_itemsink')
       .select('*, item:items(*)')
       .eq('invoice_id', id)
 
-    const data = invoice ? { ...invoice, invoice_items: invoiceItems ?? [] } : null
-
-    if (error || !data) {
-      return Response.json({ error: 'Invoice not found' }, { status: 404 })
+    const data = {
+      ...invoice,
+      bill_to_company: companiesMap[invoice.bill_to_company_id] ?? null,
+      ship_to_company: companiesMap[invoice.ship_to_company_id] ?? null,
+      invoice_items: invoiceItems ?? [],
     }
 
     const logoPath = path.join(process.cwd(), 'public', 'Logoink.png')

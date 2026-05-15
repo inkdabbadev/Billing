@@ -46,22 +46,48 @@ export async function GET(
     const search = request.nextUrl.searchParams.get('search') ?? ''
     const status = request.nextUrl.searchParams.get('status') ?? ''
 
+    // Fetch invoices without embedded join — avoids PostgREST FK cache issues
+    // after table renames (e.g. invoices → invoicesink).
     let query = supabase
       .from(config.invoiceTable)
-      .select(`
-        *,
-        bill_to_company:companies!bill_to_company_id(*),
-        ship_to_company:companies!ship_to_company_id(*)
-      `)
+      .select('*')
       .order('created_at', { ascending: false })
 
     if (search) query = query.ilike('invoice_no', `%${search}%`)
     if (status) query = query.eq('status', status)
 
-    const { data, error } = await query
-    if (error) throw error
+    const { data: invoices, error: invError } = await query
+    if (invError) {
+      console.error(`[GET /api/${company}/invoices] table=${config.invoiceTable}`, invError)
+      throw invError
+    }
 
-    return Response.json(data)
+    // Fetch companies separately and merge — same response shape as embedded join.
+    const companyIds = [
+      ...new Set(
+        (invoices ?? [])
+          .flatMap((inv: any) => [inv.bill_to_company_id, inv.ship_to_company_id])
+          .filter(Boolean)
+      ),
+    ]
+
+    const companiesMap: Record<string, any> = {}
+    if (companyIds.length > 0) {
+      const { data: companies, error: coError } = await supabase
+        .from('companies')
+        .select('*')
+        .in('id', companyIds)
+      if (coError) console.error(`[GET /api/${company}/invoices] companies lookup`, coError)
+      for (const c of companies ?? []) companiesMap[c.id] = c
+    }
+
+    const result = (invoices ?? []).map((inv: any) => ({
+      ...inv,
+      bill_to_company: companiesMap[inv.bill_to_company_id] ?? null,
+      ship_to_company: companiesMap[inv.ship_to_company_id] ?? null,
+    }))
+
+    return Response.json(result)
   } catch (err) {
     console.error(`[GET /api/${company}/invoices]`, err)
     return Response.json({ error: 'Failed to fetch invoices' }, { status: 500 })

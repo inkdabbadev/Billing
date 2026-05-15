@@ -8,6 +8,8 @@ import { z } from 'zod'
 import type { Company, Item, PaymentMethod } from '@/lib/types/database'
 import { calculateLine, calculateTotals, fmt } from '@/lib/utils/calculateInvoice'
 import type { InvoiceLineInput } from '@/lib/types/invoice'
+import { ItemCombobox } from '@/components/ItemCombobox'
+import { CompanyCombobox } from '@/components/CompanyCombobox'
 
 const lineSchema = z.object({
   item_id: z.string().nullable().optional(),
@@ -71,6 +73,7 @@ export default function NewInvoicePage() {
     resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
       invoice_date: new Date().toISOString().slice(0, 10),
+      place_of_supply: 'Tamil Nadu',
       status: 'draft',
       lines: [{ ...BLANK_LINE }],
     },
@@ -78,6 +81,8 @@ export default function NewInvoicePage() {
 
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
   const watchedLines = useWatch({ control, name: 'lines' })
+  const watchedBillTo = useWatch({ control, name: 'bill_to_company_id' })
+  const watchedShipTo = useWatch({ control, name: 'ship_to_company_id' })
 
   useEffect(() => {
     Promise.all([
@@ -99,18 +104,15 @@ export default function NewInvoicePage() {
     })
   }, [])
 
-  // When an item is selected from the catalog, prefill the line
-  function applyItem(index: number, itemId: string) {
-    const item = items.find((i) => i.id === itemId)
-    if (!item) return
-    const half = Math.round(item.gst_percent / 2 * 100) / 100
-    setValue(`lines.${index}.description`, item.item_name)
+  function applyItem(index: number, item: Item) {
+    const half = Math.round((item.gst_percent / 2) * 100) / 100
+    setValue(`lines.${index}.item_id`, item.id)
+    setValue(`lines.${index}.description`, item.description || item.item_name)
     setValue(`lines.${index}.hsn_sac`, item.hsn_sac ?? '')
     setValue(`lines.${index}.unit`, item.unit)
     setValue(`lines.${index}.rate`, item.default_rate)
     setValue(`lines.${index}.sgst_percent`, half)
     setValue(`lines.${index}.cgst_percent`, half)
-    setValue(`lines.${index}.item_id`, itemId)
   }
 
   // Live totals
@@ -206,28 +208,24 @@ export default function NewInvoicePage() {
           </div>
         </Section>
 
-        {/* ── Company Selection ── */}
         <Section title="Parties">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="Bill To (Client) *" error={errors.bill_to_company_id?.message}>
-              <select {...register('bill_to_company_id')} className={inp(!!errors.bill_to_company_id)}>
-                <option value="">Select company…</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.company_name}{c.branch ? ` – ${c.branch}` : c.city ? ` – ${c.city}` : ''}
-                  </option>
-                ))}
-              </select>
+              <CompanyCombobox
+                companies={companies}
+                selectedId={watchedBillTo}
+                onSelect={(id) => setValue('bill_to_company_id', id ?? '')}
+                placeholder="Search company…"
+              />
             </Field>
             <Field label="Ship To (optional – defaults to Bill To)">
-              <select {...register('ship_to_company_id')} className={inp()}>
-                <option value="">Same as Bill To</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.company_name}{c.branch ? ` – ${c.branch}` : c.city ? ` – ${c.city}` : ''}
-                  </option>
-                ))}
-              </select>
+              <CompanyCombobox
+                companies={companies}
+                selectedId={watchedShipTo}
+                onSelect={(id) => setValue('ship_to_company_id', id ?? '')}
+                placeholder="Same as Bill To"
+                nullable
+              />
             </Field>
           </div>
         </Section>
@@ -263,31 +261,25 @@ export default function NewInvoicePage() {
                     <tr key={field.id} className="align-top">
                       <td className="pt-3 pr-2 text-gray-400 text-xs">{i + 1}</td>
 
-                      {/* Catalog picker */}
                       <td className="pt-2 pr-2">
-                        <select
-                          className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900"
-                          onChange={(e) => applyItem(i, e.target.value)}
-                          defaultValue=""
-                        >
-                          <option value="">Pick item…</option>
-                          {items.map((it) => (
-                            <option key={it.id} value={it.id}>{it.item_name}</option>
-                          ))}
-                        </select>
+                        <ItemCombobox
+                          items={items}
+                          selectedItemId={watchedLines?.[i]?.item_id}
+                          onSelect={(item) => applyItem(i, item)}
+                        />
                       </td>
 
                       <td className="pt-2 pr-2">
                         <input
                           {...register(`lines.${i}.description`)}
-                          className={`w-full px-2 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900 ${lineErrors?.description ? 'border-red-400' : 'border-gray-200'}`}
+                          className={`w-full px-2 py-1.5 text-xs border rounded-lg focus:outline-none ${lineErrors?.description ? 'border-red-400' : 'border-gray-200'}`}
                           placeholder="Description"
                         />
                         {lineErrors?.description && <p className="text-red-500 text-xs mt-0.5">{lineErrors.description.message}</p>}
                       </td>
 
                       <td className="pt-2 pr-2">
-                        <input {...register(`lines.${i}.hsn_sac`)} className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900" placeholder="998912" />
+                        <input {...register(`lines.${i}.hsn_sac`)} className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none" placeholder="998912" />
                       </td>
 
                       <td className="pt-2 pr-2">
@@ -295,7 +287,7 @@ export default function NewInvoicePage() {
                           type="number"
                           step="0.01"
                           {...register(`lines.${i}.qty`)}
-                          className={`w-full px-2 py-1.5 text-xs border rounded-lg text-right focus:outline-none focus:ring-1 focus:ring-gray-900 ${lineErrors?.qty ? 'border-red-400' : 'border-gray-200'}`}
+                          className={`w-full px-2 py-1.5 text-xs border rounded-lg text-right focus:outline-none ${lineErrors?.qty ? 'border-red-400' : 'border-gray-200'}`}
                         />
                       </td>
 
@@ -308,7 +300,7 @@ export default function NewInvoicePage() {
                           type="number"
                           step="0.01"
                           {...register(`lines.${i}.rate`)}
-                          className={`w-full px-2 py-1.5 text-xs border rounded-lg text-right focus:outline-none focus:ring-1 focus:ring-gray-900 ${lineErrors?.rate ? 'border-red-400' : 'border-gray-200'}`}
+                          className={`w-full px-2 py-1.5 text-xs border rounded-lg text-right focus:outline-none ${lineErrors?.rate ? 'border-red-400' : 'border-gray-200'}`}
                         />
                       </td>
 
@@ -422,7 +414,7 @@ export default function NewInvoicePage() {
             type="button"
             onClick={() => handleSubmit((v) => submit(v as FormValues, false))()}
             disabled={saving}
-            className="px-6 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50"
+            className="t-btn-primary px-6 py-2.5 text-sm font-medium rounded-lg"
           >
             {saving && !savingPdf ? 'Saving…' : 'Save as Draft'}
           </button>
@@ -469,7 +461,5 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 function inp(hasError = false) {
-  return `w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 ${
-    hasError ? 'border-red-400' : 'border-gray-200'
-  }`
+  return `w-full px-3 py-2 text-sm t-input ${hasError ? 'border-red-400' : ''}`
 }

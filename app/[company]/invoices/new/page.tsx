@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import type { Company, Item, PaymentMethod } from '@/lib/types/database'
 import { ItemCombobox } from '@/components/ItemCombobox'
+import { CompanyCombobox } from '@/components/CompanyCombobox'
 import { calculateLine, calculateTotals, fmt } from '@/lib/utils/calculateInvoice'
 import type { InvoiceLineInput } from '@/lib/types/invoice'
 
@@ -68,6 +69,7 @@ export default function NewCompanyInvoicePage() {
     resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
       invoice_date: new Date().toISOString().slice(0, 10),
+      place_of_supply: 'Tamil Nadu',
       status: 'draft',
       lines: [{ ...BLANK_LINE }],
     },
@@ -75,6 +77,8 @@ export default function NewCompanyInvoicePage() {
 
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
   const watchedLines = useWatch({ control, name: 'lines' })
+  const watchedBillTo = useWatch({ control, name: 'bill_to_company_id' })
+  const watchedShipTo = useWatch({ control, name: 'ship_to_company_id' })
 
   useEffect(() => {
     Promise.all([
@@ -201,24 +205,21 @@ export default function NewCompanyInvoicePage() {
         <Section title="Parties">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="Bill To (Client) *" error={errors.bill_to_company_id?.message}>
-              <select {...register('bill_to_company_id')} className={inp(!!errors.bill_to_company_id)}>
-                <option value="">Select company…</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.company_name}{c.branch ? ` – ${c.branch}` : c.city ? ` – ${c.city}` : ''}
-                  </option>
-                ))}
-              </select>
+              <CompanyCombobox
+                companies={companies}
+                selectedId={watchedBillTo}
+                onSelect={(id) => setValue('bill_to_company_id', id ?? '')}
+                placeholder="Search company…"
+              />
             </Field>
             <Field label="Ship To (optional – defaults to Bill To)">
-              <select {...register('ship_to_company_id')} className={inp()}>
-                <option value="">Same as Bill To</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.company_name}{c.branch ? ` – ${c.branch}` : c.city ? ` – ${c.city}` : ''}
-                  </option>
-                ))}
-              </select>
+              <CompanyCombobox
+                companies={companies}
+                selectedId={watchedShipTo}
+                onSelect={(id) => setValue('ship_to_company_id', id ?? '')}
+                placeholder="Same as Bill To"
+                nullable
+              />
             </Field>
           </div>
         </Section>
@@ -261,7 +262,7 @@ export default function NewCompanyInvoicePage() {
                       <td className="pt-2 pr-2">
                         <input
                           {...register(`lines.${i}.description`)}
-                          className={`w-full px-2 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900 ${lineErrors?.description ? 'border-red-400' : 'border-gray-200'}`}
+                          className={`w-full px-2 py-1.5 text-xs t-input ${lineErrors?.description ? 'border-red-400' : ''}`}
                           placeholder="Description"
                         />
                         {lineErrors?.description && <p className="text-red-500 text-xs mt-0.5">{lineErrors.description.message}</p>}
@@ -299,7 +300,7 @@ export default function NewCompanyInvoicePage() {
             </table>
           </div>
 
-          <button type="button" onClick={() => append({ ...BLANK_LINE })} className="mt-3 text-sm text-blue-600 hover:text-blue-800">
+          <button type="button" onClick={() => append({ ...BLANK_LINE })} className="mt-3 text-sm font-medium t-link">
             + Add Line
           </button>
 
@@ -358,7 +359,7 @@ export default function NewCompanyInvoicePage() {
             type="button"
             onClick={() => handleSubmit((v) => submit(v as FormValues, false))()}
             disabled={saving}
-            className="px-6 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50"
+            className="t-btn-primary px-6 py-2.5 text-sm font-medium rounded-lg"
           >
             {saving && !savingPdf ? 'Saving…' : 'Save as Draft'}
           </button>
@@ -366,11 +367,11 @@ export default function NewCompanyInvoicePage() {
             type="button"
             onClick={() => handleSubmit((v) => submit(v as FormValues, true))()}
             disabled={saving}
-            className="px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="t-btn-secondary px-6 py-2.5 text-sm font-medium rounded-lg"
           >
             {savingPdf ? 'Generating PDF…' : 'Save & Download PDF'}
           </button>
-          <button type="button" onClick={() => router.back()} className="px-6 py-2.5 text-sm text-gray-600 hover:text-gray-900">
+          <button type="button" onClick={() => router.back()} className="px-6 py-2.5 text-sm text-gray-500 hover:text-gray-800">
             Cancel
           </button>
         </div>
@@ -382,8 +383,8 @@ export default function NewCompanyInvoicePage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-      <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-        <h2 className="text-sm font-semibold text-gray-700">{title}</h2>
+      <div className="px-5 py-3 t-section-header">
+        <h2 className="text-sm font-semibold" style={{ color: 'var(--t-primary)' }}>{title}</h2>
       </div>
       <div className="px-5 py-5">{children}</div>
     </div>
@@ -401,5 +402,5 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 function inp(hasError = false) {
-  return `w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 ${hasError ? 'border-red-400' : 'border-gray-200'}`
+  return `w-full px-3 py-2 text-sm t-input ${hasError ? 'border-red-400' : ''}`
 }

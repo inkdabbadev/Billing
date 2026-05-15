@@ -13,32 +13,40 @@ export async function GET(
   try {
     const supabase = createServerClient()
 
+    // Fetch invoices without embedded join — avoids PostgREST FK cache issues on renamed tables.
     const [
-      { data: invoices, error: invErr },
+      { data: rawInvoices, error: invErr },
       { data: companies, error: coErr },
       { data: items, error: itErr },
     ] = await Promise.all([
       supabase
         .from(config.invoiceTable)
-        .select(
-          'id, invoice_no, invoice_date, grand_total, status, bill_to_company_id, bill_to_company:companies!bill_to_company_id(id, company_name, branch)'
-        )
+        .select('id, invoice_no, invoice_date, grand_total, status, bill_to_company_id')
         .order('created_at', { ascending: false }),
       supabase.from('companies').select('*').order('company_name', { ascending: true }),
       supabase.from('items').select('*').order('item_name', { ascending: true }),
     ])
 
-    if (invErr) console.error(`[GET /api/${company}/dashboard] invoices:`, invErr)
+    if (invErr) console.error(`[GET /api/${company}/dashboard] table=${config.invoiceTable}`, invErr)
     if (coErr) console.error(`[GET /api/${company}/dashboard] companies:`, coErr)
     if (itErr) console.error(`[GET /api/${company}/dashboard] items:`, itErr)
 
-    // Fetch invoice_items only for invoices belonging to this company
-    const invoiceIds = (invoices ?? []).map((i: any) => i.id)
+    // Merge company data in JS using the already-fetched companies list.
+    const companiesMap: Record<string, any> = {}
+    for (const c of companies ?? []) companiesMap[c.id] = c
+
+    const invoices = (rawInvoices ?? []).map((inv: any) => ({
+      ...inv,
+      bill_to_company: companiesMap[inv.bill_to_company_id] ?? null,
+    }))
+
+    // Fetch invoice_items only for invoices belonging to this company.
+    const invoiceIds = invoices.map((i: any) => i.id)
     let invoiceItems: { invoice_id: string; item_id: string }[] = []
     if (invoiceIds.length > 0) {
       const { data: ii, error: iiErr } = await supabase
         .from(config.invoiceItemsTable)
-        .select('invoice_id, item_id')
+        .select('invoice_id, item_id, total')
         .in('invoice_id', invoiceIds)
         .not('item_id', 'is', null)
       if (iiErr) console.error(`[GET /api/${company}/dashboard] ${config.invoiceItemsTable}:`, iiErr)
@@ -46,7 +54,7 @@ export async function GET(
     }
 
     return Response.json({
-      invoices: invoices ?? [],
+      invoices,
       companies: companies ?? [],
       items: items ?? [],
       invoiceItems,

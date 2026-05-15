@@ -7,9 +7,130 @@
 
   html {
     font-family: var(--font-geist), system-ui, -apple-system, sans-serif;
+    /* Fallback theme vars for non-company routes (legacy dashboard) */
+    --t-primary:       #374151;
+    --t-primary-hover: #1F2937;
+    --t-primary-soft:  #F3F4F6;
+    --t-app-bg:        #F9FAFB;
+    --t-border:        #E5E7EB;
+    --t-text:          #111827;
   }
 
   body {
     margin: 0;
+  }
+}
+
+/* ── Company theme CSS custom properties ─────────────────────────────────────
+   Set on the layout root div via inline style. All child pages consume these.
+   ────────────────────────────────────────────────────────────────────────── */
+
+@layer utilities {
+  /* Primary action button */
+  .t-btn-primary {
+    background-color: var(--t-primary);
+    color: #ffffff;
+    transition: background-color 150ms;
+  }
+  .t-btn-primary:hover:not(:disabled) {
+    background-color: var(--t-primary-hover);
+  }
+  .t-btn-primary:disabled {
+    opacity: 0.5;
+  }
+
+  /* Secondary / outline button */
+  .t-btn-secondary {
+    background-color: #ffffff;
+    color: var(--t-text);
+    border: 1px solid var(--t-border);
+    transition: background-color 150ms;
+  }
+  .t-btn-secondary:hover:not(:disabled) {
+    background-color: var(--t-primary-soft);
+    border-color: var(--t-primary);
+    color: var(--t-primary);
+  }
+
+  /* Link / text action */
+  .t-link {
+    color: var(--t-primary);
+  }
+  .t-link:hover {
+    opacity: 0.75;
+  }
+
+  /* Page background */
+  .t-bg-app {
+    background-color: var(--t-app-bg);
+  }
+
+  /* White card with themed border */
+  .t-card {
+    background-color: #ffffff;
+    border: 1px solid var(--t-border);
+    border-radius: 0.75rem;
+  }
+
+  /* Selected card state */
+  .t-card-selected {
+    background-color: var(--t-primary-soft);
+    border-color: var(--t-primary);
+    box-shadow: 0 0 0 1px var(--t-primary);
+  }
+
+  /* Table header row */
+  .t-table-head {
+    background-color: var(--t-primary-soft);
+    color: var(--t-primary);
+  }
+
+  /* Form input focus ring */
+  .t-input {
+    border: 1px solid var(--t-border);
+    border-radius: 0.5rem;
+    background-color: #ffffff;
+    outline: none;
+    transition: box-shadow 150ms, border-color 150ms;
+  }
+  .t-input:focus {
+    border-color: var(--t-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--t-primary) 20%, transparent);
+  }
+
+  /* Active tab */
+  .t-tab-active {
+    background-color: var(--t-primary);
+    color: #ffffff;
+  }
+
+  /* Stat card highlight (revenue) */
+  .t-stat-highlight {
+    background-color: var(--t-primary);
+    border-color: var(--t-primary);
+    color: #ffffff;
+  }
+
+  /* Section header in forms */
+  .t-section-header {
+    background-color: var(--t-primary-soft);
+    border-bottom: 1px solid var(--t-border);
+  }
+
+  /* Checkmark circle */
+  .t-checkmark {
+    background-color: var(--t-primary);
+    color: #ffffff;
+  }
+
+  /* Row / badge counter */
+  .t-badge-primary {
+    background-color: var(--t-primary);
+    color: #ffffff;
+  }
+
+  /* Selected row in table */
+  .t-row-selected {
+    background-color: var(--t-primary-soft);
   }
 }

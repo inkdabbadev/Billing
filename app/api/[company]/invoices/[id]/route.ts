@@ -50,23 +50,42 @@ export async function GET(
 
     const { data: invoice, error } = await supabase
       .from(config.invoiceTable)
-      .select(`
-        *,
-        bill_to_company:companies!bill_to_company_id(*),
-        ship_to_company:companies!ship_to_company_id(*)
-      `)
+      .select('*')
       .eq('id', id)
       .single()
 
-    if (error || !invoice) return Response.json({ error: 'Invoice not found' }, { status: 404 })
+    if (error || !invoice) {
+      console.error(`[GET /api/${company}/invoices/${id}] table=${config.invoiceTable}`, error)
+      return Response.json({ error: 'Invoice not found' }, { status: 404 })
+    }
 
-    const { data: invoiceItems } = await supabase
+    // Fetch companies separately — avoids PostgREST FK cache issues on renamed tables.
+    const companyIds = [invoice.bill_to_company_id, invoice.ship_to_company_id].filter(Boolean)
+    const companiesMap: Record<string, any> = {}
+    if (companyIds.length > 0) {
+      const { data: companies, error: coErr } = await supabase
+        .from('companies')
+        .select('*')
+        .in('id', companyIds)
+      if (coErr) console.error(`[GET /api/${company}/invoices/${id}] companies`, coErr)
+      for (const c of companies ?? []) companiesMap[c.id] = c
+    }
+
+    const { data: invoiceItems, error: iiErr } = await supabase
       .from(config.invoiceItemsTable)
       .select('*, item:items(*)')
       .eq('invoice_id', id)
 
-    return Response.json({ ...invoice, invoice_items: invoiceItems ?? [] })
-  } catch {
+    if (iiErr) console.error(`[GET /api/${company}/invoices/${id}] items`, iiErr)
+
+    return Response.json({
+      ...invoice,
+      bill_to_company: companiesMap[invoice.bill_to_company_id] ?? null,
+      ship_to_company: companiesMap[invoice.ship_to_company_id] ?? null,
+      invoice_items: invoiceItems ?? [],
+    })
+  } catch (err) {
+    console.error(`[GET /api/${company}/invoices/${id}]`, err)
     return Response.json({ error: 'Failed to fetch invoice' }, { status: 500 })
   }
 }

@@ -105,7 +105,7 @@ export default function ItemsPage() {
         </div>
         <button
           onClick={openAdd}
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700"
+          className="t-btn-primary px-4 py-2 text-sm font-medium rounded-lg"
         >
           + Add Item
         </button>
@@ -117,7 +117,7 @@ export default function ItemsPage() {
           placeholder="Search items…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full max-w-xs px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
+          className="t-input w-full max-w-xs px-3 py-2 text-sm"
         />
       </div>
 
@@ -127,7 +127,7 @@ export default function ItemsPage() {
         ) : items.length === 0 ? (
           <div className="p-12 text-center">
             <p className="text-sm text-gray-400">No items found.</p>
-            <button onClick={openAdd} className="mt-2 text-sm text-blue-600">Add your first item →</button>
+            <button onClick={openAdd} className="mt-2 text-sm t-link">Add your first item →</button>
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -225,7 +225,7 @@ export default function ItemsPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50"
+                  className="t-btn-primary px-5 py-2 text-sm font-medium rounded-lg"
                 >
                   {saving ? 'Saving…' : editing ? 'Update Item' : 'Add Item'}
                 </button>
@@ -249,7 +249,5 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 function inp(hasError = false) {
-  return `w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 ${
-    hasError ? 'border-red-400' : 'border-gray-200'
-  }`
+  return `w-full px-3 py-2 text-sm t-input ${hasError ? 'border-red-400' : ''}`
 }

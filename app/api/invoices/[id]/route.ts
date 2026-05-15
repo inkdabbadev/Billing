@@ -46,22 +46,33 @@ export async function GET(
 
     const { data: invoice, error } = await supabase
       .from('invoicesink')
-      .select(`
-        *,
-        bill_to_company:companies!bill_to_company_id(*),
-        ship_to_company:companies!ship_to_company_id(*)
-      `)
+      .select('*')
       .eq('id', id)
       .single()
 
-    if (error || !invoice) return Response.json({ error: 'Invoice not found' }, { status: 404 })
+    if (error || !invoice) {
+      console.error('[GET /api/invoices/[id]]', error)
+      return Response.json({ error: 'Invoice not found' }, { status: 404 })
+    }
+
+    const companyIds = [invoice.bill_to_company_id, invoice.ship_to_company_id].filter(Boolean)
+    const companiesMap: Record<string, any> = {}
+    if (companyIds.length > 0) {
+      const { data: companies } = await supabase.from('companies').select('*').in('id', companyIds)
+      for (const c of companies ?? []) companiesMap[c.id] = c
+    }
 
     const { data: invoiceItems } = await supabase
       .from('invoice_itemsink')
       .select('*, item:items(*)')
       .eq('invoice_id', id)
 
-    return Response.json({ ...invoice, invoice_items: invoiceItems ?? [] })
+    return Response.json({
+      ...invoice,
+      bill_to_company: companiesMap[invoice.bill_to_company_id] ?? null,
+      ship_to_company: companiesMap[invoice.ship_to_company_id] ?? null,
+      invoice_items: invoiceItems ?? [],
+    })
   } catch {
     return Response.json({ error: 'Failed to fetch invoice' }, { status: 500 })
   }

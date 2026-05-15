@@ -21,16 +21,24 @@ export async function GET(
 
     const { data: invoice, error } = await supabase
       .from(config.invoiceTable)
-      .select(`
-        *,
-        bill_to_company:companies!bill_to_company_id(*),
-        ship_to_company:companies!ship_to_company_id(*)
-      `)
+      .select('*')
       .eq('id', id)
       .single()
 
     if (error || !invoice) {
+      console.error(`[GET /api/${company}/invoices/${id}/pdf] table=${config.invoiceTable}`, error)
       return Response.json({ error: 'Invoice not found' }, { status: 404 })
+    }
+
+    // Fetch companies separately — avoids PostgREST FK cache issues on renamed tables.
+    const companyIds = [invoice.bill_to_company_id, invoice.ship_to_company_id].filter(Boolean)
+    const companiesMap: Record<string, any> = {}
+    if (companyIds.length > 0) {
+      const { data: companies } = await supabase
+        .from('companies')
+        .select('*')
+        .in('id', companyIds)
+      for (const c of companies ?? []) companiesMap[c.id] = c
     }
 
     const { data: invoiceItems } = await supabase
@@ -38,7 +46,12 @@ export async function GET(
       .select('*, item:items(*)')
       .eq('invoice_id', id)
 
-    const fullInvoice = { ...invoice, invoice_items: invoiceItems ?? [] }
+    const fullInvoice = {
+      ...invoice,
+      bill_to_company: companiesMap[invoice.bill_to_company_id] ?? null,
+      ship_to_company: companiesMap[invoice.ship_to_company_id] ?? null,
+      invoice_items: invoiceItems ?? [],
+    }
 
     const logoPath = path.join(process.cwd(), 'public', config.logoFile)
     let logoDataUrl: string | null = null

@@ -115,7 +115,7 @@ export default function PaymentsPage() {
         </div>
         <button
           onClick={openAdd}
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
+          className="t-btn-primary px-4 py-2 text-sm font-medium rounded-lg"
         >
           + Add Payment Method
         </button>
@@ -133,7 +133,7 @@ export default function PaymentsPage() {
           <p className="text-sm text-gray-400">No payment methods saved yet.</p>
           <button
             onClick={openAdd}
-            className="mt-3 text-sm text-blue-600 hover:text-blue-800"
+            className="mt-3 text-sm t-link"
           >
             Add your first payment method →
           </button>
@@ -143,15 +143,14 @@ export default function PaymentsPage() {
           {methods.map((m) => (
             <div
               key={m.id}
-              className={`bg-white border rounded-xl px-6 py-5 flex items-start justify-between gap-4 ${
-                m.is_default ? 'border-blue-200 ring-1 ring-blue-100' : 'border-gray-200'
-              }`}
+              className="bg-white border rounded-xl px-6 py-5 flex items-start justify-between gap-4"
+              style={m.is_default ? { borderColor: 'var(--t-primary)', boxShadow: '0 0 0 1px color-mix(in srgb, var(--t-primary) 25%, transparent)' } : { borderColor: '#E5E7EB' }}
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <p className="text-sm font-semibold text-gray-900">{m.title}</p>
                   {m.is_default && (
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                    <span className="px-2 py-0.5 text-xs font-medium rounded-full" style={{ backgroundColor: 'var(--t-primary-soft)', color: 'var(--t-primary)' }}>
                       Default
                     </span>
                   )}
@@ -166,7 +165,7 @@ export default function PaymentsPage() {
                   <button
                     onClick={() => setDefault(m.id)}
                     disabled={settingDefault === m.id}
-                    className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50 whitespace-nowrap"
+                    className="text-xs t-link disabled:opacity-50 whitespace-nowrap"
                   >
                     {settingDefault === m.id ? '…' : 'Set Default'}
                   </button>
@@ -247,7 +246,7 @@ export default function PaymentsPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50"
+                  className="t-btn-primary px-5 py-2 text-sm font-medium rounded-lg"
                 >
                   {saving ? 'Saving…' : editing ? 'Update' : 'Add Method'}
                 </button>
@@ -279,7 +278,5 @@ function Field({
 }
 
 function inp(hasError = false) {
-  return `w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 ${
-    hasError ? 'border-red-400' : 'border-gray-200'
-  }`
+  return `w-full px-3 py-2 text-sm t-input ${hasError ? 'border-red-400' : ''}`
 }

@@ -69,7 +69,7 @@ export default function CompanyInvoicesPage() {
         </div>
         <Link
           href={`${base}/invoices/new`}
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
+          className="t-btn-primary px-4 py-2 text-sm font-medium rounded-lg"
         >
           + New Invoice
         </Link>
@@ -81,12 +81,12 @@ export default function CompanyInvoicesPage() {
           placeholder="Search invoice number…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 min-w-[220px]"
+          className="t-input px-3 py-2 text-sm min-w-55"
         />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
+          className="t-input px-3 py-2 text-sm"
         >
           <option value="">All statuses</option>
           <option value="draft">Draft</option>
@@ -101,7 +101,7 @@ export default function CompanyInvoicesPage() {
         ) : invoices.length === 0 ? (
           <div className="p-12 text-center">
             <p className="text-sm text-gray-400">No invoices found.</p>
-            <Link href={`${base}/invoices/new`} className="mt-2 inline-block text-sm text-blue-600">
+            <Link href={`${base}/invoices/new`} className="mt-2 inline-block text-sm t-link">
               Create your first invoice →
             </Link>
           </div>
@@ -135,7 +135,7 @@ export default function CompanyInvoicesPage() {
                   </td>
                   <td className="px-6 py-3 text-right space-x-3">
                     <Link href={`${base}/invoices/${inv.id}`} className="text-xs text-gray-600 hover:text-gray-900">View</Link>
-                    <button onClick={() => downloadPdf(inv.id, inv.invoice_no)} className="text-xs text-blue-600 hover:text-blue-800">PDF</button>
+                    <button onClick={() => downloadPdf(inv.id, inv.invoice_no)} className="text-xs t-link">PDF</button>
                     <Link href={`${base}/invoices/${inv.id}?edit=1`} className="text-xs text-gray-600 hover:text-gray-900">Edit</Link>
                     <button
                       onClick={() => deleteInvoice(inv.id)}

@@ -126,7 +126,7 @@ export default function CompaniesPage() {
         </div>
         <button
           onClick={openAdd}
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
+          className="t-btn-primary px-4 py-2 text-sm font-medium rounded-lg"
         >
           + Add Company
         </button>
@@ -139,7 +139,7 @@ export default function CompaniesPage() {
           placeholder="Search companies…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full max-w-xs px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
+          className="t-input w-full max-w-xs px-3 py-2 text-sm"
         />
       </div>
 
@@ -150,7 +150,7 @@ export default function CompaniesPage() {
         ) : companies.length === 0 ? (
           <div className="p-12 text-center">
             <p className="text-sm text-gray-400">No companies found.</p>
-            <button onClick={openAdd} className="mt-2 text-sm text-blue-600">Add your first company →</button>
+            <button onClick={openAdd} className="mt-2 text-sm t-link">Add your first company →</button>
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -169,7 +169,7 @@ export default function CompaniesPage() {
                 <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="px-6 py-3">
                     <p className="font-medium text-gray-900">{c.company_name}</p>
-                    {c.branch && <p className="text-xs text-blue-600 font-medium">{c.branch}</p>}
+                    {c.branch && <p className="text-xs font-medium" style={{ color: 'var(--t-primary)' }}>{c.branch}</p>}
                     {c.email && <p className="text-xs text-gray-400">{c.email}</p>}
                   </td>
                   <td className="px-6 py-3 text-gray-500 font-mono text-xs">{c.gstin || '—'}</td>
@@ -177,7 +177,7 @@ export default function CompaniesPage() {
                   <td className="px-6 py-3 text-gray-600">{c.phone || '—'}</td>
                   <td className="px-6 py-3">
                     <div className="flex gap-1">
-                      {c.is_client && <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">Client</span>}
+                      {c.is_client && <span className="px-2 py-0.5 rounded-full text-xs" style={{ backgroundColor: 'var(--t-primary-soft)', color: 'var(--t-primary)' }}>Client</span>}
                       {c.is_supplier && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs">Supplier</span>}
                     </div>
                   </td>
@@ -282,7 +282,7 @@ export default function CompaniesPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50"
+                  className="t-btn-primary px-5 py-2 text-sm font-medium rounded-lg"
                 >
                   {saving ? 'Saving…' : editing ? 'Update Company' : 'Add Company'}
                 </button>
@@ -306,7 +306,5 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 function input(hasError = false) {
-  return `w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 ${
-    hasError ? 'border-red-400' : 'border-gray-200'
-  }`
+  return `w-full px-3 py-2 text-sm t-input ${hasError ? 'border-red-400' : ''}`
 }

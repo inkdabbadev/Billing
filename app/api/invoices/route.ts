@@ -40,20 +40,42 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('invoicesink')
-      .select(`
-        *,
-        bill_to_company:companies!bill_to_company_id(*),
-        ship_to_company:companies!ship_to_company_id(*)
-      `)
+      .select('*')
       .order('created_at', { ascending: false })
 
     if (search) query = query.ilike('invoice_no', `%${search}%`)
     if (status) query = query.eq('status', status)
 
-    const { data, error } = await query
-    if (error) throw error
+    const { data: invoices, error: invError } = await query
+    if (invError) {
+      console.error('[GET /api/invoices]', invError)
+      throw invError
+    }
 
-    return Response.json(data)
+    const companyIds = [
+      ...new Set(
+        (invoices ?? [])
+          .flatMap((inv: any) => [inv.bill_to_company_id, inv.ship_to_company_id])
+          .filter(Boolean)
+      ),
+    ]
+
+    const companiesMap: Record<string, any> = {}
+    if (companyIds.length > 0) {
+      const { data: companies } = await supabase
+        .from('companies')
+        .select('*')
+        .in('id', companyIds)
+      for (const c of companies ?? []) companiesMap[c.id] = c
+    }
+
+    const result = (invoices ?? []).map((inv: any) => ({
+      ...inv,
+      bill_to_company: companiesMap[inv.bill_to_company_id] ?? null,
+      ship_to_company: companiesMap[inv.ship_to_company_id] ?? null,
+    }))
+
+    return Response.json(result)
   } catch {
     return Response.json({ error: 'Failed to fetch invoices' }, { status: 500 })
   }

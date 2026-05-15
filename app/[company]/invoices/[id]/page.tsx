@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { fmt, calculateLine, calculateTotals } from '@/lib/utils/calculateInvoice'
 import type { Company, Item, PaymentMethod } from '@/lib/types/database'
 import { ItemCombobox } from '@/components/ItemCombobox'
+import { CompanyCombobox } from '@/components/CompanyCombobox'
 import type { InvoiceLineInput, InvoiceWithRelations } from '@/lib/types/invoice'
 
 const STATUS_COLOR: Record<string, string> = {
@@ -72,6 +73,8 @@ export default function CompanyInvoiceDetailPage() {
   })
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
   const watchedLines = useWatch({ control, name: 'lines' })
+  const watchedBillTo = useWatch({ control, name: 'bill_to_company_id' })
+  const watchedShipTo = useWatch({ control, name: 'ship_to_company_id' })
 
   useEffect(() => {
     Promise.all([
@@ -214,7 +217,7 @@ export default function CompanyInvoiceDetailPage() {
   if (!invoice || (invoice as any).error) return (
     <div className="p-8">
       <p className="text-sm text-red-500">Invoice not found.</p>
-      <Link href={`${base}/invoices`} className="mt-2 inline-block text-sm text-blue-600">← Back to Invoices</Link>
+      <Link href={`${base}/invoices`} className="mt-2 inline-block text-sm t-link">← Back to Invoices</Link>
     </div>
   )
 
@@ -238,10 +241,10 @@ export default function CompanyInvoiceDetailPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={downloadPdf} disabled={pdfLoading} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+            <button onClick={downloadPdf} disabled={pdfLoading} className="t-btn-primary px-4 py-2 text-sm font-medium rounded-lg">
               {pdfLoading ? 'Generating…' : 'Download PDF'}
             </button>
-            <button onClick={() => setEditMode(true)} className="px-4 py-2 border border-gray-200 text-sm text-gray-700 rounded-lg hover:bg-gray-50">
+            <button onClick={() => setEditMode(true)} className="t-btn-secondary px-4 py-2 text-sm font-medium rounded-lg">
               Edit
             </button>
             {invoice.status !== 'paid' && (
@@ -296,8 +299,8 @@ export default function CompanyInvoiceDetailPage() {
           </InfoCard>
 
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-              <h2 className="text-sm font-semibold text-gray-700">Items & Services</h2>
+            <div className="px-5 py-3 t-section-header">
+              <h2 className="text-sm font-semibold" style={{ color: 'var(--t-primary)' }}>Items & Services</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -408,24 +411,21 @@ export default function CompanyInvoiceDetailPage() {
         <Section title="Parties">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Bill To *" error={errors.bill_to_company_id?.message}>
-              <select {...register('bill_to_company_id')} className={inp(!!errors.bill_to_company_id)}>
-                <option value="">Select…</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.company_name}{c.branch ? ` – ${c.branch}` : c.city ? ` – ${c.city}` : ''}
-                  </option>
-                ))}
-              </select>
+              <CompanyCombobox
+                companies={companies}
+                selectedId={watchedBillTo}
+                onSelect={(id) => setValue('bill_to_company_id', id ?? '')}
+                placeholder="Search company…"
+              />
             </Field>
             <Field label="Ship To">
-              <select {...register('ship_to_company_id')} className={inp()}>
-                <option value="">Same as Bill To</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.company_name}{c.branch ? ` – ${c.branch}` : c.city ? ` – ${c.city}` : ''}
-                  </option>
-                ))}
-              </select>
+              <CompanyCombobox
+                companies={companies}
+                selectedId={watchedShipTo}
+                onSelect={(id) => setValue('ship_to_company_id', id ?? '')}
+                placeholder="Same as Bill To"
+                nullable
+              />
             </Field>
           </div>
         </Section>
@@ -478,7 +478,7 @@ export default function CompanyInvoiceDetailPage() {
               </tbody>
             </table>
           </div>
-          <button type="button" onClick={() => append({ item_id: '', description: '', hsn_sac: '', qty: 1, unit: 'NOS', rate: 0, sgst_percent: 9, cgst_percent: 9 })} className="mt-3 text-sm text-blue-600">+ Add Line</button>
+          <button type="button" onClick={() => append({ item_id: '', description: '', hsn_sac: '', qty: 1, unit: 'NOS', rate: 0, sgst_percent: 9, cgst_percent: 9 })} className="mt-3 text-sm font-medium t-link">+ Add Line</button>
           <div className="mt-5 flex justify-end">
             <div className="w-64 space-y-2 text-sm">
               <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>₹ {fmt(totals.subtotal)}</span></div>
@@ -520,10 +520,10 @@ export default function CompanyInvoiceDetailPage() {
         </Section>
 
         <div className="flex gap-3">
-          <button type="button" onClick={handleSubmit((v) => onSave(v as FormValues))} disabled={saving} className="px-6 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50">
+          <button type="button" onClick={handleSubmit((v) => onSave(v as FormValues))} disabled={saving} className="t-btn-primary px-6 py-2.5 text-sm font-medium rounded-lg">
             {saving ? 'Saving…' : 'Save Changes'}
           </button>
-          <button type="button" onClick={() => setEditMode(false)} className="px-6 py-2.5 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
+          <button type="button" onClick={() => setEditMode(false)} className="px-6 py-2.5 text-sm text-gray-500 hover:text-gray-800">Cancel</button>
         </div>
       </form>
     </div>
@@ -533,8 +533,8 @@ export default function CompanyInvoiceDetailPage() {
 function InfoCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-      <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{title}</h2>
+      <div className="px-5 py-3 t-section-header">
+        <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--t-primary)' }}>{title}</h2>
       </div>
       <div className="px-5 py-4">{children}</div>
     </div>
@@ -553,8 +553,8 @@ function MetaRow({ label, value }: { label: string; value?: string | null }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-      <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-        <h2 className="text-sm font-semibold text-gray-700">{title}</h2>
+      <div className="px-5 py-3 t-section-header">
+        <h2 className="text-sm font-semibold" style={{ color: 'var(--t-primary)' }}>{title}</h2>
       </div>
       <div className="px-5 py-5">{children}</div>
     </div>
@@ -572,5 +572,5 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 function inp(hasError = false) {
-  return `w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 ${hasError ? 'border-red-400' : 'border-gray-200'}`
+  return `w-full px-3 py-2 text-sm t-input ${hasError ? 'border-red-400' : ''}`
 }

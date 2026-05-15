@@ -21,6 +21,7 @@ interface InvoiceRow {
 interface InvoiceItemLink {
   invoice_id: string
   item_id: string
+  total: number
 }
 
 interface DashboardData {
@@ -99,13 +100,25 @@ function computeStats(
     }
   } else if (tab === 'items') {
     if (selItems.size > 0) {
-      const linkedInvoiceIds = new Set(
-        invoiceItems.filter((ii) => selItems.has(ii.item_id)).map((ii) => ii.invoice_id)
-      )
+      const selectedLinks = invoiceItems.filter((ii) => selItems.has(ii.item_id))
+      const linkedInvoiceIds = new Set(selectedLinks.map((ii) => ii.invoice_id))
       working = invoices.filter((i) => linkedInvoiceIds.has(i.id))
       totalCount = selItems.size
       totalLabel = selItems.size === 1 ? 'Item' : 'Items'
       totalSub = `${working.length} invoice${working.length !== 1 ? 's' : ''}`
+
+      // For items tab, compute revenue/pending from item line totals, not full invoice totals
+      const invoiceStatusMap = new Map(invoices.map((i) => [i.id, i.status]))
+      const itemRevenue = selectedLinks
+        .filter((ii) => isPaid(invoiceStatusMap.get(ii.invoice_id) ?? ''))
+        .reduce((s, ii) => s + Number(ii.total), 0)
+      const itemPending = selectedLinks
+        .filter((ii) => isUnpaid(invoiceStatusMap.get(ii.invoice_id) ?? ''))
+        .reduce((s, ii) => s + Number(ii.total), 0)
+      const draftCount = new Set(selectedLinks.filter((ii) => isDraft(invoiceStatusMap.get(ii.invoice_id) ?? '')).map((ii) => ii.invoice_id)).size
+      const paidCount  = new Set(selectedLinks.filter((ii) => isPaid(invoiceStatusMap.get(ii.invoice_id) ?? '')).map((ii) => ii.invoice_id)).size
+
+      return { totalCount, totalLabel, totalSub, revenue: itemRevenue, pending: itemPending, draftCount, paidCount }
     } else {
       working = invoices
       totalCount = items.length
@@ -241,7 +254,7 @@ export default function CompanyDashboardPage() {
         </div>
         <Link
           href={`${base}/invoices/new`}
-          className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-900 text-white text-xs sm:text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors shrink-0"
+          className="t-btn-primary px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-lg shrink-0"
         >
           + New Invoice
         </Link>
@@ -283,15 +296,20 @@ export default function CompanyDashboardPage() {
                   onClick={() => setTab(t.id)}
                   className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
                     isActive
-                      ? 'bg-gray-900 text-white'
+                      ? 't-tab-active'
                       : 'text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 hover:text-gray-900'
                   }`}
+                  style={isActive ? { backgroundColor: 'var(--t-primary)', color: '#fff' } : {}}
                 >
                   {t.label}
                   {tabSel.size > 0 && (
-                    <span className={`min-w-4.5 h-4.5 px-1 rounded-full text-[10px] font-bold leading-4.5 text-center inline-block ${
-                      isActive ? 'bg-white text-gray-900' : 'bg-blue-500 text-white'
-                    }`}>
+                    <span
+                      className="min-w-4.5 h-4.5 px-1 rounded-full text-[10px] font-bold leading-4.5 text-center inline-block"
+                      style={isActive
+                        ? { backgroundColor: '#fff', color: 'var(--t-primary)' }
+                        : { backgroundColor: 'var(--t-primary)', color: '#fff' }
+                      }
+                    >
                       {tabSel.size}
                     </span>
                   )}
@@ -339,12 +357,30 @@ function CompanyGrid({
   selected: Set<string>
   onToggle: (id: string) => void
 }) {
+  const [query, setQuery] = useState('')
+  const filtered = query.trim() === '' ? companies : companies.filter((c) => {
+    const q = query.toLowerCase()
+    return c.company_name.toLowerCase().includes(q) || c.branch?.toLowerCase().includes(q) || c.gstin?.toLowerCase().includes(q) || c.city?.toLowerCase().includes(q)
+  })
+
   if (!companies.length)
     return <EmptyState msg="No companies found." />
 
   return (
+    <>
+      <div className="mb-3">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search companies…"
+          className="w-full sm:w-72 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none bg-white t-input"
+        />
+      </div>
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-      {companies.map((c) => {
+      {filtered.length === 0 ? (
+        <div className="col-span-3 py-8 text-sm text-gray-400 text-center">No companies match your search.</div>
+      ) : filtered.map((c) => {
         const s = companyStats.get(c.id)
         const isSel = selected.has(c.id)
         return (
@@ -352,13 +388,18 @@ function CompanyGrid({
             key={c.id}
             onClick={() => onToggle(c.id)}
             className={`text-left p-4 rounded-xl border transition-all duration-150 w-full ${
-              isSel ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-200 shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+              isSel ? 'shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
             }`}
+            style={isSel ? {
+              backgroundColor: 'var(--t-primary-soft)',
+              borderColor: 'var(--t-primary)',
+              boxShadow: '0 0 0 1px var(--t-primary)',
+            } : {}}
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-sm text-gray-900 truncate">{c.company_name}</p>
-                {c.branch && <p className="text-xs text-blue-600 font-medium truncate mt-0.5">{c.branch}</p>}
+                {c.branch && <p className="text-xs font-medium truncate mt-0.5" style={{ color: 'var(--t-primary)' }}>{c.branch}</p>}
                 {c.gstin && <p className="text-[10px] text-gray-400 font-mono mt-0.5 truncate">{c.gstin}</p>}
               </div>
               {isSel && <Checkmark />}
@@ -371,6 +412,7 @@ function CompanyGrid({
         )
       })}
     </div>
+    </>
   )
 }
 
@@ -382,12 +424,30 @@ function ItemGrid({
   selected: Set<string>
   onToggle: (id: string) => void
 }) {
+  const [query, setQuery] = useState('')
+  const filtered = query.trim() === '' ? items : items.filter((it) => {
+    const q = query.toLowerCase()
+    return it.item_name.toLowerCase().includes(q) || it.description?.toLowerCase().includes(q) || it.hsn_sac?.toLowerCase().includes(q) || it.category?.toLowerCase().includes(q)
+  })
+
   if (!items.length)
     return <EmptyState msg="No items found." />
 
   return (
+    <>
+      <div className="mb-3">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search items…"
+          className="w-full sm:w-72 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none bg-white t-input"
+        />
+      </div>
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-      {items.map((it) => {
+      {filtered.length === 0 ? (
+        <div className="col-span-3 py-8 text-sm text-gray-400 text-center">No items match your search.</div>
+      ) : filtered.map((it) => {
         const used = itemUsage.get(it.id) ?? 0
         const isSel = selected.has(it.id)
         return (
@@ -395,8 +455,13 @@ function ItemGrid({
             key={it.id}
             onClick={() => onToggle(it.id)}
             className={`text-left p-4 rounded-xl border transition-all duration-150 w-full ${
-              isSel ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-200 shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+              isSel ? 'shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
             }`}
+            style={isSel ? {
+              backgroundColor: 'var(--t-primary-soft)',
+              borderColor: 'var(--t-primary)',
+              boxShadow: '0 0 0 1px var(--t-primary)',
+            } : {}}
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
@@ -414,6 +479,7 @@ function ItemGrid({
         )
       })}
     </div>
+    </>
   )
 }
 
@@ -430,7 +496,7 @@ function InvoiceList({
     return (
       <EmptyState
         msg={emptyMsg ?? 'No invoices found.'}
-        action={<Link href={`${base}/invoices/new`} className="text-sm text-blue-600">Create your first invoice →</Link>}
+        action={<Link href={`${base}/invoices/new`} className="text-sm t-link">Create your first invoice →</Link>}
       />
     )
 
@@ -444,8 +510,9 @@ function InvoiceList({
               key={inv.id}
               onClick={() => onToggle(inv.id)}
               className={`flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-colors ${
-                isSel ? 'bg-blue-50 border-l-2 border-blue-400' : 'hover:bg-gray-50'
+                isSel ? 'border-l-2' : 'hover:bg-gray-50'
               }`}
+              style={isSel ? { backgroundColor: 'var(--t-primary-soft)', borderLeftColor: 'var(--t-primary)' } : {}}
             >
               <RowCheck checked={isSel} />
               <div className="flex-1 min-w-0">
@@ -491,8 +558,9 @@ function InvoiceList({
                 key={inv.id}
                 onClick={() => onToggle(inv.id)}
                 className={`border-b border-gray-50 last:border-0 cursor-pointer transition-colors ${
-                  isSel ? 'bg-blue-50' : 'hover:bg-gray-50'
+                  isSel ? '' : 'hover:bg-gray-50'
                 }`}
+                style={isSel ? { backgroundColor: 'var(--t-primary-soft)' } : {}}
               >
                 <td className="pl-5 pr-2 py-3"><RowCheck checked={isSel} /></td>
                 <td className="px-3 py-3">
@@ -524,10 +592,19 @@ function InvoiceList({
 function StatCard({ label, value, sub, highlight, warning }: {
   label: string; value: string | number; sub: string; highlight?: boolean; warning?: boolean
 }) {
-  const bg     = highlight ? 'bg-gray-900 border-gray-900' : warning ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'
-  const lblClr = highlight ? 'text-gray-400' : warning ? 'text-amber-600' : 'text-gray-500'
-  const valClr = highlight ? 'text-white' : warning ? 'text-amber-700' : 'text-gray-900'
-  const subClr = highlight ? 'text-gray-500' : warning ? 'text-amber-500' : 'text-gray-400'
+  if (highlight) {
+    return (
+      <div className="rounded-xl p-4 sm:p-5 border" style={{ backgroundColor: 'var(--t-primary)', borderColor: 'var(--t-primary)' }}>
+        <p className="text-[11px] sm:text-xs font-medium mb-1.5 leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>{label}</p>
+        <p className="text-xl sm:text-2xl font-bold leading-none text-white">{value}</p>
+        <p className="text-[10px] sm:text-xs mt-1.5" style={{ color: 'rgba(255,255,255,0.6)' }}>{sub}</p>
+      </div>
+    )
+  }
+  const bg     = warning ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'
+  const lblClr = warning ? 'text-amber-600' : 'text-gray-500'
+  const valClr = warning ? 'text-amber-700' : 'text-gray-900'
+  const subClr = warning ? 'text-amber-500' : 'text-gray-400'
   return (
     <div className={`rounded-xl p-4 sm:p-5 border ${bg}`}>
       <p className={`text-[11px] sm:text-xs font-medium mb-1.5 leading-tight ${lblClr}`}>{label}</p>
@@ -539,7 +616,7 @@ function StatCard({ label, value, sub, highlight, warning }: {
 
 function Checkmark() {
   return (
-    <div className="shrink-0 w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
+    <div className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--t-primary)' }}>
       <svg className="w-3 h-3 text-white" viewBox="0 0 10 10" fill="none">
         <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
@@ -549,7 +626,10 @@ function Checkmark() {
 
 function RowCheck({ checked }: { checked: boolean }) {
   return (
-    <div className={`shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${checked ? 'border-blue-500 bg-blue-500' : 'border-gray-200'}`}>
+    <div
+      className="shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all"
+      style={checked ? { borderColor: 'var(--t-primary)', backgroundColor: 'var(--t-primary)' } : { borderColor: '#D1D5DB' }}
+    >
       {checked && (
         <svg className="w-2 h-2 text-white" viewBox="0 0 10 10" fill="none">
           <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />

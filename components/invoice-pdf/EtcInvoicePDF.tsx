@@ -10,20 +10,22 @@ import {
 } from '@react-pdf/renderer'
 import { fmt } from '@/lib/utils/calculateInvoice'
 import type { InvoiceWithRelations } from '@/lib/types/invoice'
+import { registerFonts } from '@/lib/pdf-fonts'
+registerFonts()
 
 // ── ETC brand identity ────────────────────────────────────────────────────────
 
 const BIZ = {
   name:        'ETC',
   tagline:     'Electronics & Technology Company',
-  addressLine1: 'Address Line 1',
-  addressLine2: 'Address Line 2',
+  addressLine1: '34B, 3RD Avenue, KKR Nagar',
+  addressLine2: 'Madhavaram',
   city:        'Chennai',
   state:       'Tamil Nadu',
-  pincode:     '600001',
-  phone:       '+91-00000 00000',
-  email:       'info@etc.com',
-  gstin:       '',
+  pincode:     '600060',
+  phone:       '+91-9940183984',
+  email:       'easwaritradingcompany@gmail.com',
+  gstin:       '33AAHPE5769M1ZC',
   bank: {
     accountName: 'ETC',
     bankName:    'Bank Name',
@@ -38,28 +40,28 @@ const PAYMENT_LINE = `All payments can be made to ${BIZ.bank.accountName} | ${BI
 // ── Palette ───────────────────────────────────────────────────────────────────
 
 const C = {
-  heroBlue:      '#EEF4FF',
-  stripGray:     '#F8FAFC',
+  heroBlue:      '#EAF8F1',  // Soft Green Tint
+  stripGray:     '#F2FAF6',  // Subtle green for strips
   cardBg:        '#FFFFFF',
-  navy:          '#1E293B',
-  dark:          '#0F172A',
-  muted:         '#64748B',
-  border:        '#E2E8F0',
-  borderDark:    '#CBD5E1',
-  accent:        '#1D4ED8',
-  accentLight:   '#DBEAFE',
+  navy:          '#007A4D',  // Deep Green — table header, GSTIN labels
+  dark:          '#1F2933',  // Charcoal — body text
+  muted:         '#6B7280',  // Medium Grey — labels
+  border:        '#E5E7EB',  // Light Grey — dividers
+  borderDark:    '#C9CDD4',
+  accent:        '#00A86B',  // Primary Green — headings, totals highlight
+  accentLight:   '#EAF8F1',  // Soft Green Tint — grand total bg
   white:         '#FFFFFF',
-  rowAlt:        '#F8FAFC',
-  taxHeaderBg:   '#F1F5F9',
-  paymentBg:     '#F0FDF4',
-  paymentBorder: '#BBF7D0',
+  rowAlt:        '#F2FAF6',  // Subtle green alt rows
+  taxHeaderBg:   '#EAF8F1',
+  paymentBg:     '#EAF8F1',
+  paymentBorder: '#00A86B',
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const S = StyleSheet.create({
   page: {
-    fontFamily: 'Helvetica',
+    fontFamily: 'Roboto',
     fontSize: 8,
     color: C.dark,
     paddingTop: 24,
@@ -71,34 +73,34 @@ const S = StyleSheet.create({
   heroLeft: { flex: 1, paddingRight: 14, borderRight: `1pt solid ${C.border}` },
   heroRight: { flex: 1, paddingLeft: 14, alignItems: 'flex-end' },
   logo: { width: 100, height: 52, objectFit: 'contain', marginBottom: 6 },
-  bizName: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: C.dark, marginBottom: 2 },
+  bizName: { fontSize: 13, fontFamily: 'Roboto', fontWeight: 'bold', color: C.dark, marginBottom: 2 },
   bizTag: { fontSize: 7, color: C.muted, marginBottom: 2 },
   bizLine: { fontSize: 7, color: C.muted, marginBottom: 1 },
-  bizGstin: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: C.navy, marginTop: 2 },
-  heroTitle: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: C.dark, letterSpacing: 1, marginBottom: 10, textAlign: 'right' },
+  bizGstin: { fontSize: 7, fontFamily: 'Roboto', fontWeight: 'bold', color: C.navy, marginTop: 2 },
+  heroTitle: { fontSize: 20, fontFamily: 'Roboto', fontWeight: 'bold', color: '#050505', letterSpacing: 1, marginBottom: 10, textAlign: 'right' },
   heroMetaLabel: { fontSize: 6.5, color: C.muted, marginBottom: 1, textAlign: 'right' },
-  heroMetaValue: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: C.dark, marginBottom: 6, textAlign: 'right' },
+  heroMetaValue: { fontSize: 8, fontFamily: 'Roboto', fontWeight: 'bold', color: C.dark, marginBottom: 6, textAlign: 'right' },
   metaStrip: { flexDirection: 'row', backgroundColor: C.stripGray, borderRadius: 6, border: `0.5pt solid ${C.border}`, padding: 8, marginBottom: 10 },
   metaField: { flex: 1, paddingHorizontal: 6, borderRight: `0.5pt solid ${C.border}` },
   metaFieldLast: { flex: 1, paddingHorizontal: 6 },
   metaLabel: { fontSize: 6, color: C.muted, marginBottom: 1.5, textTransform: 'uppercase' },
-  metaValue: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: C.dark },
+  metaValue: { fontSize: 7.5, fontFamily: 'Roboto', fontWeight: 'bold', color: C.dark },
   partyRow: { flexDirection: 'row', marginBottom: 10 },
   partyCard: { flex: 1, backgroundColor: C.cardBg, border: `0.5pt solid ${C.border}`, borderRadius: 6, padding: 10, marginRight: 6 },
   partyCardRight: { flex: 1, backgroundColor: C.cardBg, border: `0.5pt solid ${C.border}`, borderRadius: 6, padding: 10 },
-  partyHeading: { fontSize: 6, fontFamily: 'Helvetica-Bold', color: C.accent, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 5, paddingBottom: 3, borderBottom: `0.5pt solid ${C.border}` },
-  partyName: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: C.dark, marginBottom: 2 },
-  partyGstin: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: C.navy, marginBottom: 2 },
+  partyHeading: { fontSize: 6, fontFamily: 'Roboto', fontWeight: 'bold', color: C.accent, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 5, paddingBottom: 3, borderBottom: `0.5pt solid ${C.border}` },
+  partyName: { fontSize: 9, fontFamily: 'Roboto', fontWeight: 'bold', color: C.dark, marginBottom: 2 },
+  partyGstin: { fontSize: 7, fontFamily: 'Roboto', fontWeight: 'bold', color: C.navy, marginBottom: 2 },
   partyLine: { fontSize: 7, color: C.muted, marginBottom: 1 },
   table: { border: `0.5pt solid ${C.border}`, borderRadius: 6, overflow: 'hidden', marginBottom: 8 },
   tableHeader: { flexDirection: 'row', backgroundColor: C.navy },
   tableRow: { flexDirection: 'row', borderBottom: `0.5pt solid ${C.border}` },
   tableRowAlt: { flexDirection: 'row', borderBottom: `0.5pt solid ${C.border}`, backgroundColor: C.rowAlt },
-  th: { color: C.white, fontFamily: 'Helvetica-Bold', fontSize: 6.5, paddingVertical: 5, paddingHorizontal: 4, borderRight: `0.5pt solid #2D3F55` },
-  thLast: { color: C.white, fontFamily: 'Helvetica-Bold', fontSize: 6.5, paddingVertical: 5, paddingHorizontal: 4 },
+  th: { color: C.white, fontFamily: 'Roboto', fontWeight: 'bold', fontSize: 6.5, paddingVertical: 5, paddingHorizontal: 4, borderRight: `0.5pt solid #005C38` },
+  thLast: { color: C.white, fontFamily: 'Roboto', fontWeight: 'bold', fontSize: 6.5, paddingVertical: 5, paddingHorizontal: 4 },
   td: { fontSize: 7, paddingVertical: 5, paddingHorizontal: 4, borderRight: `0.5pt solid ${C.border}`, color: C.dark },
   tdLast: { fontSize: 7, paddingVertical: 5, paddingHorizontal: 4, color: C.dark },
-  tdItemName: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: C.dark, marginBottom: 1 },
+  tdItemName: { fontSize: 7.5, fontFamily: 'Roboto', fontWeight: 'bold', color: C.dark, marginBottom: 1 },
   tdItemDesc: { fontSize: 6.5, color: C.muted },
   tdTaxLine: { fontSize: 6, color: C.muted, marginTop: 1 },
   colSno:  { width: 16 },
@@ -112,31 +114,31 @@ const S = StyleSheet.create({
   wordsRow: { flexDirection: 'row', marginBottom: 8, alignItems: 'stretch' },
   wordsBox: { flex: 1, backgroundColor: C.stripGray, border: `0.5pt solid ${C.border}`, borderRadius: 6, padding: 8, marginRight: 6 },
   wordsLabel: { fontSize: 6, color: C.muted, textTransform: 'uppercase', marginBottom: 3 },
-  wordsText: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: C.dark },
+  wordsText: { fontSize: 7.5, fontFamily: 'Roboto', fontWeight: 'bold', color: C.dark },
   notesText: { fontSize: 7.5, color: C.dark },
   totalsBox: { width: 190, border: `0.5pt solid ${C.border}`, borderRadius: 6, overflow: 'hidden' },
   totalsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 10, borderBottom: `0.5pt solid ${C.border}` },
   totalsLabel: { fontSize: 7, color: C.muted },
-  totalsValue: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: C.dark },
+  totalsValue: { fontSize: 7, fontFamily: 'Roboto', fontWeight: 'bold', color: C.dark },
   grandRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, paddingHorizontal: 10, backgroundColor: C.accentLight },
-  grandLabel: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: C.accent },
-  grandValue: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: C.accent },
+  grandLabel: { fontSize: 8.5, fontFamily: 'Roboto', fontWeight: 'bold', color: C.accent },
+  grandValue: { fontSize: 8.5, fontFamily: 'Roboto', fontWeight: 'bold', color: C.accent },
   taxSection: { border: `0.5pt solid ${C.border}`, borderRadius: 6, overflow: 'hidden', marginBottom: 8 },
   taxTitleBar: { backgroundColor: C.stripGray, paddingVertical: 4, paddingHorizontal: 8, borderBottom: `0.5pt solid ${C.border}` },
-  taxTitle: { fontSize: 6.5, fontFamily: 'Helvetica-Bold', color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 },
+  taxTitle: { fontSize: 6.5, fontFamily: 'Roboto', fontWeight: 'bold', color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 },
   taxHeader: { flexDirection: 'row', backgroundColor: C.taxHeaderBg, borderBottom: `0.5pt solid ${C.border}` },
   taxRow: { flexDirection: 'row', borderBottom: `0.5pt solid ${C.border}` },
   taxRowLast: { flexDirection: 'row' },
-  taxTh: { flex: 1, fontSize: 6.5, fontFamily: 'Helvetica-Bold', color: C.muted, paddingVertical: 4, paddingHorizontal: 5, borderRight: `0.5pt solid ${C.border}` },
-  taxThLast: { flex: 1, fontSize: 6.5, fontFamily: 'Helvetica-Bold', color: C.muted, paddingVertical: 4, paddingHorizontal: 5 },
+  taxTh: { flex: 1, fontSize: 6.5, fontFamily: 'Roboto', fontWeight: 'bold', color: C.muted, paddingVertical: 4, paddingHorizontal: 5, borderRight: `0.5pt solid ${C.border}` },
+  taxThLast: { flex: 1, fontSize: 6.5, fontFamily: 'Roboto', fontWeight: 'bold', color: C.muted, paddingVertical: 4, paddingHorizontal: 5 },
   taxCell: { flex: 1, fontSize: 7, color: C.dark, paddingVertical: 3, paddingHorizontal: 5, borderRight: `0.5pt solid ${C.border}` },
   taxCellLast: { flex: 1, fontSize: 7, color: C.dark, paddingVertical: 3, paddingHorizontal: 5 },
   paymentBox: { backgroundColor: C.paymentBg, border: `0.5pt solid ${C.paymentBorder}`, borderRadius: 6, padding: 8, marginBottom: 8, flexDirection: 'row', alignItems: 'center' },
-  paymentLabel: { fontSize: 6, fontFamily: 'Helvetica-Bold', color: '#166534', textTransform: 'uppercase', marginBottom: 2 },
-  paymentText: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: '#14532D' },
+  paymentLabel: { fontSize: 6, fontFamily: 'Roboto', fontWeight: 'bold', color: '#007A4D', textTransform: 'uppercase', marginBottom: 2 },
+  paymentText: { fontSize: 7.5, fontFamily: 'Roboto', fontWeight: 'bold', color: '#007A4D' },
   footerBlock: { backgroundColor: C.stripGray, border: `0.5pt solid ${C.border}`, borderRadius: 6, padding: 10, marginTop: 4, flexDirection: 'row', justifyContent: 'flex-end' },
   footerSealCol: { alignItems: 'center', minWidth: 130 },
-  footerForLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: C.dark, textAlign: 'center', marginBottom: 22 },
+  footerForLabel: { fontSize: 7, fontFamily: 'Roboto', fontWeight: 'bold', color: C.dark, textAlign: 'center', marginBottom: 22 },
   footerSigLine: { borderTop: `0.5pt solid ${C.borderDark}`, width: 110, marginBottom: 3 },
   footerSigText: { fontSize: 6.5, color: C.muted, textAlign: 'center' },
   footerNote: { borderTop: `0.5pt solid ${C.border}`, marginTop: 8, paddingTop: 6, textAlign: 'center' },
@@ -165,8 +167,8 @@ function Header({ invoice, logoDataUrl }: { invoice: InvoiceWithRelations; logoD
     <View style={S.hero}>
       <View style={S.heroLeft}>
         {logoDataUrl && <Image style={S.logo} src={logoDataUrl} />}
-        <Text style={S.bizName}>{BIZ.name}</Text>
-        <Text style={S.bizTag}>{BIZ.tagline}</Text>
+        {/* <Text style={S.bizName}>{BIZ.name}</Text>
+        <Text style={S.bizTag}>{BIZ.tagline}</Text> */}
         <Text style={S.bizLine}>{BIZ.addressLine1}, {BIZ.addressLine2}</Text>
         <Text style={S.bizLine}>{BIZ.city}, {BIZ.state} – {BIZ.pincode}</Text>
         <Text style={S.bizLine}>{BIZ.phone}  ·  {BIZ.email}</Text>
@@ -306,7 +308,7 @@ function TaxSummary({ items }: { items: InvoiceWithRelations['invoice_items'] })
 function PaymentBox({ invoice }: { invoice: InvoiceWithRelations }) {
   const text = invoice.payment_details?.trim() || PAYMENT_LINE
   return (
-    <View style={S.paymentBox}>
+    <View style={S.paymentBox} wrap={false}>
       <View>
         <Text style={S.paymentLabel}>Payment Information</Text>
         <Text style={S.paymentText}>{text}</Text>
@@ -362,9 +364,11 @@ export function EtcInvoicePDF({
         </View>
         <TaxSummary items={items} />
         <PaymentBox invoice={invoice} />
-        <Footer invoice={invoice} />
-        <View style={S.footerNote}>
-          <Text style={S.footerNoteText}>{BIZ.footerNote}</Text>
+        <View wrap={false}>
+          <Footer invoice={invoice} />
+          <View style={S.footerNote}>
+            <Text style={S.footerNoteText}>{BIZ.footerNote}</Text>
+          </View>
         </View>
       </Page>
     </Document>

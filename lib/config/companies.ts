@@ -21,6 +21,26 @@ export interface CompanyPdfConfig {
   defaultFooterNote: string
 }
 
+export interface CompanyTheme {
+  // Sidebar
+  sidebarBg: string
+  sidebarBorder: string
+  navActiveBg: string
+  navActiveText: string
+  navInactiveText: string
+  navHoverBg: string
+  logoText: string
+  subText: string
+  accentLink: string
+  // CSS custom properties injected at layout level
+  primary: string
+  primaryHover: string
+  primarySoft: string
+  appBg: string
+  cardBorder: string
+  textMain: string
+}
+
 export interface CompanyConfig {
   id: CompanyId
   name: string
@@ -31,6 +51,7 @@ export interface CompanyConfig {
   route: string
   invoicePrefix: string
   description: string
+  theme: CompanyTheme
   pdf: CompanyPdfConfig
 }
 
@@ -45,6 +66,23 @@ export const COMPANY_CONFIGS: Record<CompanyId, CompanyConfig> = {
     route: '/inkdabba',
     invoicePrefix: 'INV',
     description: 'Screen printing & branding studio',
+    theme: {
+      sidebarBg:       '#FFFFFF',
+      sidebarBorder:   '#E5E7EB',
+      navActiveBg:     '#FFF0F8',
+      navActiveText:   '#E6007E',
+      navInactiveText: '#4A5568',
+      navHoverBg:      '#FFF5FB',
+      logoText:        '#111111',
+      subText:         '#6B7280',
+      accentLink:      '#E6007E',
+      primary:         '#E6007E',
+      primaryHover:    '#C9006F',
+      primarySoft:     '#FFF0F8',
+      appBg:           '#FAFAFC',
+      cardBorder:      '#E5E7EB',
+      textMain:        '#111111',
+    },
     pdf: {
       name: 'INK DABBA',
       tagline: '296/1, Susheel Homes',
@@ -74,19 +112,36 @@ export const COMPANY_CONFIGS: Record<CompanyId, CompanyConfig> = {
     logo: '/Logoetc.png',
     logoFile: 'Logoetc.png',
     route: '/etc',
-    invoicePrefix: 'ETC',
+    invoicePrefix: 'INV',
     description: 'Electronics & technology company',
+    theme: {
+      sidebarBg:       '#FFFFFF',
+      sidebarBorder:   '#DDE7E2',
+      navActiveBg:     '#E8F7F0',
+      navActiveText:   '#008C5A',
+      navInactiveText: '#4A5568',
+      navHoverBg:      '#F0FAF6',
+      logoText:        '#0B0F0D',
+      subText:         '#6B7280',
+      accentLink:      '#008C5A',
+      primary:         '#008C5A',
+      primaryHover:    '#00724A',
+      primarySoft:     '#E8F7F0',
+      appBg:           '#F7FAF8',
+      cardBorder:      '#DDE7E2',
+      textMain:        '#0B0F0D',
+    },
     pdf: {
       name: 'ETC',
       tagline: 'Electronics & Technology Company',
-      addressLine1: 'Address Line 1',
-      addressLine2: 'Address Line 2',
+      addressLine1: '34B, 3RD Avenue, KKR Nagar',
+      addressLine2: 'Madhavaram',
       city: 'Chennai',
       state: 'Tamil Nadu',
-      pincode: '600001',
-      phone: '+91-00000 00000',
-      email: 'info@etc.com',
-      gstin: '',
+      pincode: '600060',
+      phone: '+91-9940183984',
+      email: 'easwaritradingcompany@gmail.com',
+      gstin: '33AAHPE5769M1ZC',
       bank: {
         accountName: 'ETC',
         bankName: 'Bank Name',
@@ -105,8 +160,25 @@ export const COMPANY_CONFIGS: Record<CompanyId, CompanyConfig> = {
     logo: '/Logoss.png',
     logoFile: 'Logoss.png',
     route: '/seyon-studio',
-    invoicePrefix: 'SS',
+    invoicePrefix: 'INV',
     description: 'Creative design studio',
+    theme: {
+      sidebarBg:       '#FFFFFF',
+      sidebarBorder:   '#DDE7F7',
+      navActiveBg:     '#EFF6FF',
+      navActiveText:   '#2563EB',
+      navInactiveText: '#4A5568',
+      navHoverBg:      '#F5F9FF',
+      logoText:        '#0B1220',
+      subText:         '#6B7280',
+      accentLink:      '#2563EB',
+      primary:         '#2563EB',
+      primaryHover:    '#1D4ED8',
+      primarySoft:     '#EFF6FF',
+      appBg:           '#F6F9FF',
+      cardBorder:      '#DDE7F7',
+      textMain:        '#0B1220',
+    },
     pdf: {
       name: 'SEYON STUDIO',
       tagline: 'Creative Design Studio',

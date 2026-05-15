@@ -66,7 +66,7 @@ export default function InvoicesPage() {
         </div>
         <Link
           href="/invoices/new"
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
+          className="t-btn-primary px-4 py-2 text-sm font-medium rounded-lg"
         >
           + New Invoice
         </Link>
@@ -79,12 +79,12 @@ export default function InvoicesPage() {
           placeholder="Search invoice number…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 min-w-[220px]"
+          className="t-input px-3 py-2 text-sm min-w-55"
         />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
+          className="t-input px-3 py-2 text-sm"
         >
           <option value="">All statuses</option>
           <option value="draft">Draft</option>
