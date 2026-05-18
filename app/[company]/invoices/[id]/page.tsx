@@ -67,6 +67,11 @@ export default function CompanyInvoiceDetailPage() {
   const [saving, setSaving] = useState(false)
   const [pdfLoading, setPdfLoading] = useState(false)
   const [serverError, setServerError] = useState('')
+  const [emailModal, setEmailModal] = useState(false)
+  const [emailInput, setEmailInput] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [emailSending, setEmailSending] = useState<false | 'save' | 'send'>(false)
+  const [emailSent, setEmailSent] = useState(false)
 
   const { register, control, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as Resolver<FormValues>,
@@ -144,6 +149,42 @@ export default function CompanyInvoiceDetailPage() {
     } as InvoiceLineInput)
   )
   const totals = calculateTotals(calcLines)
+
+  function openEmailModal() {
+    setEmailInput(invoice?.bill_to_company?.email ?? '')
+    setEmailError('')
+    setEmailSent(false)
+    setEmailModal(true)
+  }
+
+  async function sendEmail(saveEmail: boolean) {
+    const trimmed = emailInput.trim()
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setEmailError('Please enter a valid email address.')
+      return
+    }
+    setEmailError('')
+    setEmailSending(saveEmail ? 'save' : 'send')
+    try {
+      const r = await fetch(`/api/${company}/invoices/${id}/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: trimmed, saveEmail }),
+      })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.error ?? 'Failed to send')
+      if (saveEmail) {
+        const full = await fetch(`/api/${company}/invoices/${id}`).then((r) => r.json())
+        setInvoice(full)
+      }
+      setEmailSent(true)
+      setTimeout(() => setEmailModal(false), 1800)
+    } catch (e: any) {
+      setEmailError(e.message)
+    } finally {
+      setEmailSending(false)
+    }
+  }
 
   async function onSave(values: FormValues) {
     setSaving(true)
@@ -243,6 +284,13 @@ export default function CompanyInvoiceDetailPage() {
           <div className="flex flex-wrap gap-2">
             <button onClick={downloadPdf} disabled={pdfLoading} className="t-btn-primary px-4 py-2 text-sm font-medium rounded-lg">
               {pdfLoading ? 'Generating…' : 'Download PDF'}
+            </button>
+            <button
+              onClick={openEmailModal}
+              className="t-btn-secondary px-4 py-2 text-sm font-medium rounded-lg"
+              title={emailSent ? 'Email sent!' : 'Send invoice by email'}
+            >
+              {emailSent ? '✓ Sent' : '✉ Send Email'}
             </button>
             <button onClick={() => setEditMode(true)} className="t-btn-secondary px-4 py-2 text-sm font-medium rounded-lg">
               Edit
@@ -367,8 +415,91 @@ export default function CompanyInvoiceDetailPage() {
             </div>
           )}
         </div>
-      </div>
-    )
+
+      {/* ── Email modal ──────────────────────────────────────────────────── */}
+      {emailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setEmailModal(false) }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-gray-100" style={{ backgroundColor: 'var(--t-primary-soft)' }}>
+              <h2 className="text-base font-bold" style={{ color: 'var(--t-primary)' }}>Send Invoice by Email</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {invoice.invoice_no} &middot; {invoice.bill_to_company?.company_name ?? 'Client'}
+              </p>
+            </div>
+
+            {emailSent ? (
+              /* ── Success state ── */
+              <div className="px-6 py-10 flex flex-col items-center gap-3">
+                <div className="w-14 h-14 rounded-full flex items-center justify-center text-2xl"
+                  style={{ backgroundColor: 'var(--t-primary-soft)', color: 'var(--t-primary)' }}>✓</div>
+                <p className="text-sm font-semibold text-gray-800">Email sent successfully!</p>
+                <p className="text-xs text-gray-400">The invoice PDF has been delivered.</p>
+              </div>
+            ) : (
+              <>
+                {/* Body */}
+                <div className="px-6 py-5 space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                      Recipient Email
+                    </label>
+                    <input
+                      type="email"
+                      value={emailInput}
+                      onChange={(e) => { setEmailInput(e.target.value); setEmailError('') }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') sendEmail(false) }}
+                      placeholder="client@example.com"
+                      className="t-input w-full px-3 py-2.5 text-sm"
+                      autoFocus
+                      disabled={emailSending !== false}
+                    />
+                    {emailError && (
+                      <p className="text-xs text-red-500 mt-1.5">{emailError}</p>
+                    )}
+                  </div>
+
+                  {!invoice.bill_to_company?.email && (
+                    <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2 leading-relaxed">
+                      No email saved for <strong>{invoice.bill_to_company?.company_name}</strong>.
+                      Use <strong>Save &amp; Send</strong> to save it for future use.
+                    </p>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="px-6 pb-5 flex items-center gap-2">
+                  <button
+                    onClick={() => sendEmail(true)}
+                    disabled={emailSending !== false}
+                    className="t-btn-primary flex-1 py-2.5 text-sm font-semibold rounded-xl"
+                  >
+                    {emailSending === 'save' ? 'Sending…' : 'Save & Send'}
+                  </button>
+                  <button
+                    onClick={() => sendEmail(false)}
+                    disabled={emailSending !== false}
+                    className="t-btn-secondary flex-1 py-2.5 text-sm font-semibold rounded-xl"
+                  >
+                    {emailSending === 'send' ? 'Sending…' : 'Send'}
+                  </button>
+                  <button
+                    onClick={() => setEmailModal(false)}
+                    disabled={emailSending !== false}
+                    className="px-3 py-2.5 text-sm text-gray-400 hover:text-gray-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
   }
 
   // ── Edit mode ─────────────────────────────────────────────────────────────────
